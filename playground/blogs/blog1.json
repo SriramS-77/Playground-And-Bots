@@ -1,0 +1,8 @@
+{
+    "id": 1,
+    "topic": "Technology",
+    "heading": "The Rise of Adaptive Security",
+    "author": "Jane Doe",
+    "date": "2025-08-15",
+    "content": "<p>The landscape of cybersecurity is in a constant state of flux. Traditional, static defenses are no longer sufficient to counter the sophisticated, automated threats that emerge daily.</p><p>This is where adaptive security comes into play. By leveraging machine learning and real-time data analysis, these systems can dynamically adjust their posture to identify and neutralize threats as they happen. Our project is an exploration into this exciting and critical field, aiming to build a CAPTCHA system that learns and evolves.</p>"
+}

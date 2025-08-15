@@ -1,0 +1,8 @@
+{
+    "id": 13,
+    "topic": "Web Development",
+    "heading": "A Look at Modern CSS",
+    "author": "Emily White",
+    "date": "2025-08-27",
+    "content": "<p>Cascading Style Sheets (CSS) has come a long way. Modern features like Flexbox, Grid, and Custom Properties have made it possible to create complex, responsive layouts with cleaner and more maintainable code.</p><p>Frameworks like Tailwind CSS build on these features to provide a utility-first workflow that can dramatically speed up development.</p>"
+}

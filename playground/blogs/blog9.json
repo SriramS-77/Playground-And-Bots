@@ -1,0 +1,8 @@
+{
+    "id": 9,
+    "topic": "Web Development",
+    "heading": "Why API Design Matters",
+    "author": "Emily White",
+    "date": "2025-08-23",
+    "content": "<p>An Application Programming Interface (API) is a set of rules and protocols that allows different software applications to communicate with each other.</p><p>Good API design is crucial for building scalable and maintainable systems. A well-designed API is easy to understand, consistent, and provides clear feedback, making it a pleasure for other developers to use.</p>"
+}

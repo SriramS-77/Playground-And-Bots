@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CAPTCHA Playground</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .prose p { margin-bottom: 1em; }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <nav class="bg-white shadow-md sticky top-0 z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <a href="#home" class="text-xl font-bold text-indigo-600">SmartCAPTCHA</a>
+                </div>
+                <div class="hidden md:block">
+                    <div class="ml-10 flex items-baseline space-x-4">
+                        <a href="#home" class="text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Home</a>
+                        <a href="#blog" class="text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Blog</a>
+                        <a href="#contact" class="text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium">Contact</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main id="content" class="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+        <!-- Content will be loaded here by the router -->
+    </main>
+
+    <script>
+        // --- Data Store ---
+        let blogPosts = [];
+
+        // --- Data Collection Service ---
+        const userData = {
+            bot_info: null,
+            mouse_movements: [],
+            clicks: [],
+            scrolls: [],
+            keystrokes: [],
+            timestamps: { start: Date.now(), end: null },
+            page_reloads: 0
+        };
+        window.userData = userData;
+
+        // --- Event Listeners ---
+        let lastScrollTop = 0;
+        function debounce(func, wait) { let timeout; return function executedFunction(...args) { const later = () => { clearTimeout(timeout); func(...args); }; clearTimeout(timeout); timeout = setTimeout(later, wait); }; }
+        const debouncedMouseMove = debounce((e) => { userData.mouse_movements.push({ x: e.clientX, y: e.clientY, timestamp: Date.now() }); }, 10);
+        document.addEventListener('mousemove', debouncedMouseMove);
+        document.addEventListener('click', (e) => { userData.clicks.push({ x: e.clientX, y: e.clientY, target: e.target.tagName, id: e.target.id, classes: e.target.className, text: e.target.innerText.slice(0, 25), timestamp: Date.now() }); });
+        document.addEventListener('scroll', () => { const st = window.pageYOffset || document.documentElement.scrollTop; userData.scrolls.push({ direction: st > lastScrollTop ? 'down' : 'up', position: st, timestamp: Date.now() }); lastScrollTop = st <= 0 ? 0 : st; });
+        document.addEventListener('keydown', (e) => { if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') { userData.keystrokes.push({ key: e.key, timestamp: Date.now() }); } });
+        window.addEventListener('pagehide', () => { userData.timestamps.end = Date.now(); sendData(); });
+        function sendData() { const blob = new Blob([JSON.stringify(userData)], { type: 'application/json' }); navigator.sendBeacon('/api/collect', blob); }
+
+        // --- Dynamic Page Rendering ---
+        const content = document.getElementById('content');
+
+        const routes = {
+            '#home': `
+                <div class="px-4 py-6 sm:px-0">
+                    <div class="bg-white shadow-md rounded-lg p-8">
+                        <h1 class="text-3xl font-bold mb-4">Welcome to the Playground</h1>
+                        <p class="text-lg mb-6">This website is designed to collect user interaction data to train a smart CAPTCHA system. Please browse the different pages and interact with the content as you normally would.</p>
+                        <a href="#blog" class="bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700">Read our Blog</a>
+                    </div>
+                </div>`,
+            '#contact': `
+                <div class="px-4 py-6 sm:px-0">
+                    <div class="bg-white shadow-md rounded-lg p-8">
+                        <h2 class="text-2xl font-bold mb-4">Contact Us</h2>
+                        <form id="contact-form" onsubmit="event.preventDefault();">
+                            <div class="mb-4"><label for="name" class="block text-sm font-medium text-gray-700">Name</label><input type="text" id="name" name="name" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></div>
+                            <div class="mb-4"><label for="email" class="block text-sm font-medium text-gray-700">Email</label><input type="email" id="email" name="email" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></div>
+                            <div class="mb-4"><label for="message" class="block text-sm font-medium text-gray-700">Message</label><textarea id="message" name="message" rows="4" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"></textarea></div>
+                            <button type="submit" class="bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700">Send</button>
+                        </form>
+                    </div>
+                </div>`
+        };
+
+        function renderBlogList(posts) {
+            const searchBar = `
+                <div class="mb-8">
+                    <input type="text" id="search-input" placeholder="Search for blogs..." class="w-full px-4 py-3 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                </div>`;
+
+            const postCards = posts.map(post => `
+                <div class="bg-white shadow-md rounded-lg p-6 mb-6 blog-card">
+                    <span class="text-sm text-indigo-500 font-semibold">${post.topic}</span>
+                    <h2 class="text-2xl font-bold my-2 post-heading">${post.heading}</h2>
+                    <p class="text-gray-600 mb-4">By ${post.author} on ${post.date}</p>
+                    <a href="#blog/${post.id}" class="text-indigo-600 hover:underline font-semibold">Read More &rarr;</a>
+                </div>`).join('');
+
+            content.innerHTML = `<div class="px-4 py-6 sm:px-0">${searchBar}<div id="blog-list">${postCards}</div></div>`;
+
+            document.getElementById('search-input').addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                document.querySelectorAll('.blog-card').forEach(card => {
+                    const heading = card.querySelector('.post-heading').innerText.toLowerCase();
+                    card.style.display = heading.includes(searchTerm) ? 'block' : 'none';
+                });
+            });
+        }
+
+        function renderBlogDetail(postId) {
+            const post = blogPosts.find(p => p.id === postId);
+            if (!post) {
+                content.innerHTML = '<h2>Blog post not found.</h2>';
+                return;
+            }
+
+            const currentIndex = blogPosts.findIndex(p => p.id === postId);
+            const prevId = currentIndex > 0 ? blogPosts[currentIndex - 1].id : null;
+            const nextId = currentIndex < blogPosts.length - 1 ? blogPosts[currentIndex + 1].id : null;
+
+            const navigation = `
+                <div class="flex justify-between mt-8">
+                    ${prevId ? `<a href="#blog/${prevId}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300">&larr; Previous</a>` : '<div></div>'}
+                    ${nextId ? `<a href="#blog/${nextId}" class="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700">Next &rarr;</a>` : '<div></div>'}
+                </div>`;
+
+            content.innerHTML = `
+                <div class="px-4 py-6 sm:px-0">
+                    <div class="bg-white shadow-md rounded-lg p-8">
+                        <a href="#blog" class="text-indigo-600 hover:underline mb-6 block">&larr; Back to Blog List</a>
+                        <span class="text-sm text-indigo-500 font-semibold">${post.topic}</span>
+                        <h1 class="text-4xl font-bold my-3">${post.heading}</h1>
+                        <p class="text-gray-600 mb-6">By ${post.author} on ${post.date}</p>
+                        <div class="prose max-w-none">${post.content}</div>
+                        ${navigation}
+                    </div>
+                </div>`;
+        }
+
+        async function router() {
+            const path = window.location.hash || '#home';
+
+            if (path.startsWith('#blog/')) {
+                const postId = parseInt(path.split('/')[1]);
+                renderBlogDetail(postId);
+            } else if (path === '#blog') {
+                renderBlogList(blogPosts);
+            } else {
+                content.innerHTML = routes[path] || '<h2>Page Not Found</h2>';
+            }
+            window.scrollTo(0, 0);
+        }
+
+        async function initialize() {
+            try {
+                const response = await fetch('/api/blogs');
+                blogPosts = await response.json();
+                router();
+            } catch (error) {
+                console.error("Failed to load blog posts:", error);
+                content.innerHTML = '<h2>Could not load content. Please try again later.</h2>';
+            }
+        }
+
+        window.addEventListener('hashchange', router);
+        window.addEventListener('load', initialize);
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,8 @@
+{
+    "id": 4,
+    "topic": "Web Development",
+    "heading": "Frontend vs. Backend: What's the Difference?",
+    "author": "Emily White",
+    "date": "2025-08-18",
+    "content": "<p>Web development is broadly divided into two areas: frontend and backend.</p><p>The <strong>frontend</strong> is everything the user sees and interacts with in their browser. It's built with languages like HTML, CSS, and JavaScript. The <strong>backend</strong> is the server-side of the application. It manages databases, user authentication, and the core logic of the website. Languages like Python, Node.js, and Java are common for backend development.</p>"
+}

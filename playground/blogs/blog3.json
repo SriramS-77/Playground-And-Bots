@@ -1,0 +1,8 @@
+{
+    "id": 3,
+    "topic": "Cybersecurity",
+    "heading": "What is a Denial-of-Service Attack?",
+    "author": "Alex Ray",
+    "date": "2025-08-17",
+    "content": "<p>A Denial-of-Service (DoS) attack is a malicious attempt to make a machine or network resource unavailable to its intended users by temporarily or indefinitely disrupting services of a host connected to the Internet.</p><p>The most common method involves flooding the target with superfluous requests in an attempt to overload systems and prevent some or all legitimate requests from being fulfilled.</p>"
+}

@@ -1,0 +1,8 @@
+{
+    "id": 5,
+    "topic": "Technology",
+    "heading": "Introduction to Reinforcement Learning",
+    "author": "Jane Doe",
+    "date": "2025-08-19",
+    "content": "<p>Reinforcement Learning (RL) is a type of machine learning where an agent learns to make decisions by performing actions in an environment to achieve some goal.</p><p>For each action, the agent receives a reward or penalty. The agent's objective is to learn a 'policy'—a strategy for choosing actions—that maximizes its total cumulative reward over time. This is the core concept we are applying to our adaptive CAPTCHA system.</p>"
+}

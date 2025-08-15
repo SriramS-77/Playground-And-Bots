@@ -1,0 +1,8 @@
+{
+    "id": 2,
+    "topic": "Science",
+    "heading": "Understanding Neural Networks",
+    "author": "John Smith",
+    "date": "2025-08-16",
+    "content": "<p>Neural networks are at the heart of the current AI revolution. Inspired by the human brain, these models learn to recognize patterns in data.</p><p>A simple neural network consists of layers of interconnected nodes, or 'neurons'. Each connection has a weight that is adjusted during training. As data passes through the network, from the input layer to the output layer, these weights are fine-tuned to produce the desired outcome, a process known as backpropagation.</p>"
+}

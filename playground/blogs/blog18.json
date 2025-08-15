@@ -1,0 +1,8 @@
+{
+    "id": 18,
+    "topic": "Web Development",
+    "heading": "The Rise of Static Site Generators",
+    "author": "Emily White",
+    "date": "2025-09-01",
+    "content": "<p>Static Site Generators (SSGs) like Jekyll, Hugo, and Next.js offer a modern approach to building websites. They pre-build pages into a set of static HTML, CSS, and JavaScript files at build time.</p><p>This results in websites that are incredibly fast, secure, and cheap to host, as they can be served directly from a Content Delivery Network (CDN) without needing a traditional backend server.</p>"
+}

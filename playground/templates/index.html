@@ -34,6 +34,9 @@
     </main>
 
     <script>
+        // --- Configuration ---
+        const DATA_STREAM_INTERVAL = 10000; // Send data every 10 seconds (10000 ms)
+
         // --- Data Store ---
         let blogPosts = [];
 
@@ -44,6 +47,7 @@
             clicks: [],
             scrolls: [],
             keystrokes: [],
+            captchas_solved: 0, // State variable managed by client and server
             timestamps: { start: Date.now(), end: null },
             page_reloads: 0
         };
@@ -56,9 +60,38 @@
         document.addEventListener('mousemove', debouncedMouseMove);
         document.addEventListener('click', (e) => { userData.clicks.push({ x: e.clientX, y: e.clientY, target: e.target.tagName, id: e.target.id, classes: e.target.className, text: e.target.innerText.slice(0, 25), timestamp: Date.now() }); });
         document.addEventListener('scroll', () => { const st = window.pageYOffset || document.documentElement.scrollTop; userData.scrolls.push({ direction: st > lastScrollTop ? 'down' : 'up', position: st, timestamp: Date.now() }); lastScrollTop = st <= 0 ? 0 : st; });
-        document.addEventListener('keydown', (e) => { if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') { userData.keystrokes.push({ key: e.key, timestamp: Date.now() }); } });
-        window.addEventListener('pagehide', () => { userData.timestamps.end = Date.now(); sendData(); });
-        function sendData() { const blob = new Blob([JSON.stringify(userData)], { type: 'application/json' }); navigator.sendBeacon('/api/collect', blob); }
+        document.addEventListener('keydown', (e) => { if (e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA') { userData.keystrokes.push({ key: e.key, timestamp: Date.now() }); } });
+
+        // --- Data Sending ---
+        // Send full data log when page closes
+        {#window.addEventListener('pagehide', () => { userData.timestamps.end = Date.now(); sendFullData(); });#}
+        function sendFullData() { const blob = new Blob([JSON.stringify(userData)], { type: 'application/json' }); navigator.sendBeacon('/api/collect', blob); }
+
+        // Periodically send data stream for live analysis
+        async function sendStreamData() {
+            try {
+                const response = await fetch('/api/data_stream', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(userData)
+                });
+                const result = await response.json();
+                console.log('Server response:', result);
+
+                // If server says the session was reset (bot was "killed"), reset the counter
+                if (result.session_reset) {
+                    console.log("Session reset by server. Resetting captcha count.");
+                    userData.captchas_solved = 0;
+                } else {
+                    userData.captchas_solved++;
+                }
+
+            } catch (error) {
+                console.error('Error sending data stream:', error);
+            }
+        }
+        setInterval(sendStreamData, DATA_STREAM_INTERVAL);
+
 
         // --- Dynamic Page Rendering ---
         const content = document.getElementById('content');

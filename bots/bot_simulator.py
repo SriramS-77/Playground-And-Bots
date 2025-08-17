@@ -506,7 +506,7 @@ async def main():
 
     N = 3
     for _ in range(N):
-        # await HumanishBot(bot_id=2).run()
+        await HumanishBot(bot_id=2).run()
         await MimicBot(bot_id=3).run()
         await FallibleBot(bot_id=4, config=slower_config).run()
 

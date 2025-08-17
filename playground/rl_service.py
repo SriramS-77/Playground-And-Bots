@@ -3,6 +3,7 @@ import torch.nn as nn
 import torch.optim as optim
 import random
 import numpy as np
+import os
 
 
 class DQN(nn.Module):
@@ -13,11 +14,11 @@ class DQN(nn.Module):
     def __init__(self, input_size, output_size):
         super(DQN, self).__init__()
         self.network = nn.Sequential(
-            nn.Linear(input_size, 128),
+            nn.Linear(input_size, 8),
             nn.ReLU(),
-            nn.Linear(128, 128),
+            nn.Linear(8, 16),
             nn.ReLU(),
-            nn.Linear(128, output_size)
+            nn.Linear(16, output_size)
         )
 
     def forward(self, x):
@@ -58,7 +59,7 @@ class ThreatAssessor:
             action_values = self.model(state_tensor)
         return np.argmax(action_values.cpu().data.numpy())
 
-    def train_model(self, batch_size=32):
+    def train_model(self, batch_size=16):
         """
         Trains the DQN model using a batch of experiences from memory.
         """
@@ -73,28 +74,49 @@ class ThreatAssessor:
             reward = torch.FloatTensor([reward])
             action = torch.LongTensor([action])
 
-            # Get the current Q-value prediction from the model
             current_q = self.model(state)[action]
 
-            # Compute the target Q-value
             if done:
                 target_q = reward
             else:
                 next_q_values = self.model(next_state)
                 target_q = reward + self.gamma * torch.max(next_q_values)
 
-            # Calculate loss and perform backpropagation
             loss = self.criterion(current_q, target_q)
             self.optimizer.zero_grad()
             loss.backward()
             self.optimizer.step()
 
-        # Decay epsilon to reduce exploration over time
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
-        print(f"RL agent: Trained {len(minibatch)} batches")
+        self.memory = self.memory[batch_size // 4:]
 
+    def save_model(self, filepath="models/rl_model.pth"):
+        """Saves the model and training state to a file."""
+        print(f"Saving RL model state to {filepath}...")
+        checkpoint = {
+            'model_state_dict': self.model.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'epsilon': self.epsilon,
+            'memory': self.memory
+        }
+        torch.save(checkpoint, filepath)
+        print("Model saved successfully.")
+
+    def load_model(self, filepath="models/rl_model.pth"):
+        """Loads the model and training state from a file."""
+        if os.path.exists(filepath):
+            print(f"Loading RL model state from {filepath}...")
+            checkpoint = torch.load(filepath)
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+            self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+            self.epsilon = checkpoint['epsilon']
+            self.memory = checkpoint['memory']
+            self.model.train()  # Set model to training mode
+            print("Model loaded successfully.")
+        else:
+            print(f"No model found at {filepath}. Starting with a new model.")
 
 
 # Instantiate a global agent

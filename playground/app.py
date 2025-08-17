@@ -5,25 +5,33 @@ import time
 from datetime import datetime
 import random
 import requests
-# Import the RL agent from our new service
 from rl_service import rl_agent
+import atexit
+
 
 HUMANITY_SCORE_PREDICTOR_URL = "http://127.0.0.1:8000/predict"
+MODEL_SAVE_PATH = "models/rl_model.pth"
+RL_BATCH_SIZE = 4
 
 def get_humanity_score(mouse_movement):
-    if not mouse_movement: return None
+    if not mouse_movement: return 0.5   # Return a neutral score if no movement data
     mouse_movement = [[movement['x'], movement['y']] for movement in mouse_movement]
     payload = {"mouse_movement": mouse_movement}
-    # Make POST request
-    response = requests.post(HUMANITY_SCORE_PREDICTOR_URL, json=payload)
+    try:
+        # Make POST request
+        response = requests.post(HUMANITY_SCORE_PREDICTOR_URL, json=payload, timeout=2)
 
-    # Print response
-    if response.status_code == 200:
-        print("Prediction:", response.json()["prediction"])
-        return response.json()["prediction"]
-    else:
-        print("Error:", response.status_code, response.text)
-        return None
+        # Print response
+        if response.status_code == 200:
+            prediction = response.json().get("prediction")
+            print("Prediction:", prediction)
+            return prediction if prediction is not None else 0.5
+        else:
+            print("Error from humanity score predictor:", response.status_code, response.text)
+            return 0.5   # Return neutral score on error
+    except requests.exceptions.RequestException as e:
+        print(f"Could not connect to humanity score predictor: {e}")
+        return 0.5   # Return neutral score on connection error
 
 def format_timestamp(ms_timestamp):
     dt_local = datetime.fromtimestamp(ms_timestamp / 1000.0)
@@ -120,6 +128,7 @@ def data_stream():
             done = True
             session_reset = True
             session['captchas_solved'] = 0  # Reset the bot's state
+            del client_sessions[client_id]  # Remove client id from sessions
         else:
             print(f"Bot {client_id} survived. Threat: {threat_level}/10. PUNISHMENT -1")
             reward = -1.0
@@ -132,7 +141,7 @@ def data_stream():
     # --- 5. Train the RL Agent ---
     next_state = [humanity_score, min(10, session['captchas_solved'])]
     rl_agent.remember(state, threat_level, reward, next_state, done)
-    rl_agent.train_model()
+    rl_agent.train_model(batch_size=RL_BATCH_SIZE)
 
     return jsonify({
         "status": "processed",
@@ -171,5 +180,17 @@ def collect_data():
         return jsonify({"status": "error", "message": "An internal error occurred"}), 500
 
 
+# --- Graceful Shutdown ---
+def shutdown_hook():
+    """This function is called when the application is shutting down."""
+    print("Shutting down gracefully...")
+    rl_agent.save_model(MODEL_SAVE_PATH)
+
+
 if __name__ == '__main__':
+    # Load the RL model on startup
+    rl_agent.load_model(MODEL_SAVE_PATH)
+    # Register the shutdown hook to save the model on exit
+    atexit.register(shutdown_hook)
+    # Run the Flask app
     app.run(debug=True, host="100.94.176.110", port=5000)

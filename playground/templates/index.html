@@ -82,6 +82,12 @@
                 if (result.session_reset) {
                     console.log("Session reset by server. Resetting captcha count.");
                     userData.captchas_solved = 0;
+                    userData.mouse_movements = [];
+                    userData.clicks = [];
+                    userData.scrolls = [];
+                    userData.keystrokes = [];
+                    userData.timestamps = { start: Date.now(), end: null };
+                    userData.page_reloads = 0;
                 } else {
                     userData.captchas_solved++;
                 }

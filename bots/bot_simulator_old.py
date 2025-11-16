@@ -5,7 +5,7 @@ import time
 from playwright.async_api import async_playwright
 
 # --- Configuration ---
-PLAYGROUND_URL = "http://100.84.51.104:5000"  # "127.0.0.1:5000"
+PLAYGROUND_URL = "http://100.94.176.110:5000"  # "127.0.0.1:5000"
 
 HEADLESS = True
 
@@ -508,15 +508,15 @@ async def main():
 
     N = 3
     for _ in range(N):
-        await NaiveBot(bot_id=1, config=slower_config).run()
-        await HumanishBot(bot_id=2, config=slower_config).run()
-        await MimicBot(bot_id=3, config=slower_config).run()
+        # await NaiveBot(bot_id=1).run()
+        await HumanishBot(bot_id=2).run()
+        await MimicBot(bot_id=3).run()
         await FallibleBot(bot_id=4, config=slower_config).run()
 
         # tasks = [
-        #     # NaiveBot(bot_id=1, config=slower_config).run(),
-        #     HumanishBot(bot_id=2, config=slower_config).run(),
-        #     MimicBot(bot_id=3, config=slower_config).run(),
+        #     # NaiveBot(bot_id=1).run(),
+        #     HumanishBot(bot_id=2).run(),
+        #     MimicBot(bot_id=3).run(),
         #     FallibleBot(bot_id=4, config=slower_config).run(),
         # ]
         # await asyncio.gather(*tasks)

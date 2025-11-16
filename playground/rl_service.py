@@ -4,7 +4,10 @@ import torch.optim as optim
 import random
 import numpy as np
 import os
+# import torch_directml as torch_dml
 
+
+device: torch.device = torch.device("cpu")   #torch_dml.device(0)  # torch.device("cpu")
 
 class DQN(nn.Module):
     """
@@ -40,9 +43,11 @@ class ThreatAssessor:
         self.epsilon_decay = 0.995
         self.learning_rate = 0.001
 
-        self.model = DQN(self.state_size, self.action_size)
+        self.model = DQN(self.state_size, self.action_size).to(device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
         self.criterion = nn.MSELoss()
+
+        self.episodes = 0
 
     def remember(self, state, action, reward, next_state, done):
         """Stores experience in the replay memory."""
@@ -54,7 +59,7 @@ class ThreatAssessor:
         """
         if np.random.rand() <= self.epsilon:
             return random.randrange(self.action_size)
-        state_tensor = torch.FloatTensor(state).unsqueeze(0)
+        state_tensor = torch.FloatTensor(state).unsqueeze(0).to(device)
         with torch.no_grad():
             action_values = self.model(state_tensor)
         return np.argmax(action_values.cpu().data.numpy())
@@ -69,10 +74,10 @@ class ThreatAssessor:
         minibatch = random.sample(self.memory, batch_size)
 
         for state, action, reward, next_state, done in minibatch:
-            state = torch.FloatTensor(state)
-            next_state = torch.FloatTensor(next_state)
-            reward = torch.FloatTensor([reward])
-            action = torch.LongTensor([action])
+            state = torch.FloatTensor(state).to(device)
+            next_state = torch.FloatTensor(next_state).to(device)
+            reward = torch.FloatTensor([reward]).to(device)
+            action = torch.LongTensor([action]).to(device)
 
             current_q = self.model(state)[action]
 
@@ -90,29 +95,36 @@ class ThreatAssessor:
         if self.epsilon > self.epsilon_min:
             self.epsilon *= self.epsilon_decay
 
+        self.episodes += 1
+        print(f"Episode: {self.episodes} - Trained RL agent for {batch_size} sessions")
+
         self.memory = self.memory[batch_size // 4:]
 
     def save_model(self, filepath="models/rl_model.pth"):
         """Saves the model and training state to a file."""
         print(f"Saving RL model state to {filepath}...")
+        self.model.cpu()
         checkpoint = {
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
             'epsilon': self.epsilon,
-            'memory': self.memory
+            'memory': self.memory,
+            'episodes': self.episodes
         }
         torch.save(checkpoint, filepath)
         print("Model saved successfully.")
+        self.model.to(device)
 
     def load_model(self, filepath="models/rl_model.pth"):
         """Loads the model and training state from a file."""
         if os.path.exists(filepath):
             print(f"Loading RL model state from {filepath}...")
-            checkpoint = torch.load(filepath)
+            checkpoint = torch.load(filepath, weights_only=False)
             self.model.load_state_dict(checkpoint['model_state_dict'])
             self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
             self.epsilon = checkpoint['epsilon']
             self.memory = checkpoint['memory']
+            self.episodes = checkpoint.get('episodes', self.episodes)
             self.model.train()  # Set model to training mode
             print("Model loaded successfully.")
         else:

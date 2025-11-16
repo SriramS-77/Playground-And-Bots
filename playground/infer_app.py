@@ -7,7 +7,7 @@ import random
 import requests
 from rl_service import rl_agent
 import atexit
-import signal
+import rl_service_offline
 
 
 COLLECT_DATA = False
@@ -17,6 +17,10 @@ MODEL_SAVE_PATH = "models/rl_model.pth"
 RL_BATCH_SIZE = 4
 
 REWARD_MEMORY = []
+
+from rl_service_offline import offline_rl_agent
+
+offline_rl_agent.load_model("models/offline_rl_model.pt")
 
 
 def get_humanity_score(mouse_movement):
@@ -96,6 +100,8 @@ def data_stream():
     Receives periodic data, calculates humanity, gets a threat level from the RL agent,
     calculates reward, and trains the agent.
     """
+    global offline_rl_agent
+    
     data = request.get_json()
     bot_info = data.get('bot_info')
     is_bot = bot_info is not None
@@ -105,7 +111,9 @@ def data_stream():
 
     # Retrieve or initialize the client's session
     if client_id not in client_sessions:
-        client_sessions[client_id] = {'captchas_solved': 0}
+        client_sessions[client_id] = {'captchas_solved': 0, 'last_captcha_solved': -1}
+        if is_bot:
+            client_sessions[client_id]['bot_strength'] = random.randint(0, 9)
 
     session = client_sessions[client_id]
 
@@ -116,46 +124,49 @@ def data_stream():
     print("Humaity Score: ", humanity_score)
 
     # --- 2. State Representation ---
-    state = [humanity_score, min(10, session['captchas_solved'])]
+    state = [
+        humanity_score,
+        session['captchas_solved'],
+        session['last_captcha_solved'],
+        180 * 7,
+        180
+    ]
+    # state = [humanity_score, min(10, session['captchas_solved'])]
 
     # --- 3. RL Agent Action ---
-    threat_level = rl_agent.select_action(state)
+    a_t = offline_rl_agent.select_action(state)
+    threat_level = a_t   # rl_agent.select_action(state)
 
     # --- 4. Reward Calculation & Simulation ---
-    reward = 0
     done = False
     session_reset = False
 
     if is_bot:
-        if random.random() < (threat_level / 10.0):
+        if session['bot_strength'] < threat_level:
             reward = 10.0
             print(f"Bot {client_id} caught! Threat: {threat_level}/10. REWARD: {reward}. Resetting session.")
             done = True
             session_reset = True
             session['captchas_solved'] = 0  # Reset the bot's state
+            session['last_captcha_solved'] = -1
             del client_sessions[client_id]  # Remove client id from sessions
         else:
             reward = -3.0
             print(f"Bot {client_id} survived. Threat: {threat_level}/10. PUNISHMENT: {reward}")
             session['captchas_solved'] += 1  # Bot survived, increment counter
+            session['last_captcha_solved'] = threat_level
     else:
         reward = 5 - threat_level
         print(f"Human user. Threat: {threat_level}/10. Reward: {reward}")
         session['captchas_solved'] += 1
-
-    # --- 5. Train the RL Agent ---
-    next_state = [humanity_score, min(10, session['captchas_solved'])]
-    rl_agent.remember(state, threat_level, reward, next_state, done)
-    rl_agent.train_model(batch_size=RL_BATCH_SIZE)
-
-    client = "bot" if is_bot else "human"
-    REWARD_MEMORY.append((client, reward))
+        session['last_captcha_solved'] = threat_level
 
     return jsonify({
         "status": "processed",
         "threat_level": int(threat_level),
         "humanity_score": humanity_score,
-        "session_reset": session_reset
+        "session_reset": session_reset,
+        "bot_strength": session.get('bot_strength', None)
     })
 
 
@@ -182,7 +193,6 @@ def collect_data():
         with open(filepath, 'w') as f:
             if COLLECT_DATA:
                 json.dump(data, f, indent=4)
-                print("Collected data successfully!")
 
         return jsonify({"status": "success", "message": f"Data saved to {filename}"}), 200
     except Exception as e:
@@ -224,4 +234,4 @@ if __name__ == '__main__':
     # signal.signal(signal.SIGINT, handle_interrupt)
 
     # Run the Flask app
-    app.run(debug=True, host="100.94.176.110", port=5000)
+    app.run(debug=True, host="100.84.51.104", port=5000)

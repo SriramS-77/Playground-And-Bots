@@ -210,3 +210,6 @@ __marimo__/
 playground/data/
 playground/backup/
 playground/models/
+
+**/*.json
+**/*.pth

@@ -7,20 +7,16 @@ from playwright.async_api import async_playwright
 # --- Configuration ---
 PLAYGROUND_URL = "http://100.84.51.104:5000"  # "127.0.0.1:5000"
 
-HEADLESS = True
+HEADLESS = False
 
-# DEFAULT_CONFIG = {
-#     "scroll_amount": 150,  # Pixels per scroll tick. Smaller is slower.
-#     "scroll_delay_min": 0.03,
-#     "scroll_delay_max": 0.08,
-#     "typing_delay_min": 0.04,
-#     "typing_delay_max": 0.15,
-# }
+# Lifetime configuration (in seconds)
+MIN_LIFETIME = 90  # Minimum browsing time
+MAX_LIFETIME = 120  # Maximum browsing time
 
 DEFAULT_CONFIG = {
     "scroll_amount": 30,  # Pixels per scroll tick. Smaller is slower.
-    "scroll_delay_min": 0.19,
-    "scroll_delay_max": 0.28,
+    "scroll_delay_min": 0.00, #0.18
+    "scroll_delay_max": 0.10, #0.29
     "typing_delay_min": 0.18,
     "typing_delay_max": 0.24,
 }
@@ -52,13 +48,53 @@ class BaseBot:
     Handles the browser lifecycle and navigation using robust context managers.
     """
 
-    def __init__(self, bot_id, config=None):
+    def __init__(self, bot_id, config=None, min_lifetime=MIN_LIFETIME, max_lifetime=MAX_LIFETIME):
         self.bot_id = bot_id
         self.page = None
         if config is None:
             config = {}
         # Merge provided config with defaults
         self.config = {**DEFAULT_CONFIG, **config}
+        self.min_lifetime = min_lifetime
+        self.max_lifetime = max_lifetime
+        self.session_start = None
+        self.target_lifetime = None
+
+    def should_continue(self):
+        """Check if the bot should continue browsing based on lifetime."""
+        if self.session_start is None or self.target_lifetime is None:
+            return True
+        elapsed = time.time() - self.session_start
+        return elapsed < self.target_lifetime
+
+    def get_remaining_time(self):
+        """Get remaining time in the session."""
+        if self.session_start is None or self.target_lifetime is None:
+            return float('inf')
+        elapsed = time.time() - self.session_start
+        return max(0, self.target_lifetime - elapsed)
+
+    async def idle_mouse_movements(self, duration=None):
+        """Perform random mouse movements for a specified duration."""
+        if duration is None:
+            duration = random.uniform(2, 5)
+        
+        end_time = time.time() + duration
+        viewport = self.page.viewport_size
+        
+        while time.time() < end_time and self.should_continue():
+            current_pos = await self.page.evaluate(
+                '() => window.mousePos || {x: window.innerWidth/2, y: window.innerHeight/2}'
+            )
+            target_x = random.uniform(100, viewport['width'] - 100)
+            target_y = random.uniform(100, viewport['height'] - 100)
+            
+            path = generate_bezier_path((current_pos['x'], current_pos['y']), (target_x, target_y))
+            for x, y in path:
+                await self.page.mouse.move(x, y)
+                await asyncio.sleep(0.02)
+            
+            await asyncio.sleep(random.uniform(0.5, 1.5))
 
     async def surf_website(self):
         """Defines the bot's browsing behavior. To be implemented by subclasses."""
@@ -73,14 +109,18 @@ class BaseBot:
         async with async_playwright() as p:
             browser = None
             try:
-                browser = await p.chromium.launch(headless=HEADLESS)  # Run in headed mode to watch
+                browser = await p.chromium.launch(headless=HEADLESS)
                 context = await browser.new_context(
                     viewport={'width': 1366, 'height': 768},
                     user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
                 )
                 self.page = await context.new_page()
 
-                print(f"Bot {self.bot_id} ({self.__class__.__name__}): Starting session.")
+                # Initialize session timing
+                self.session_start = time.time()
+                self.target_lifetime = random.uniform(self.min_lifetime, self.max_lifetime)
+                
+                print(f"Bot {self.bot_id} ({self.__class__.__name__}): Starting session (target: {self.target_lifetime:.1f}s).")
                 await self.page.goto(PLAYGROUND_URL)
                 await self.page.wait_for_load_state('networkidle')
 
@@ -106,7 +146,8 @@ class BaseBot:
             finally:
                 if browser:
                     await browser.close()
-                print(f"Bot {self.bot_id} ({self.__class__.__name__}): Session ended.")
+                elapsed = time.time() - self.session_start if self.session_start else 0
+                print(f"Bot {self.bot_id} ({self.__class__.__name__}): Session ended (duration: {elapsed:.1f}s).")
 
 
 # --- Tier 1: Naive Bot ---
@@ -114,25 +155,46 @@ class NaiveBot(BaseBot):
     """A simple bot with a predictable path and no attempt to hide its nature."""
 
     async def surf_website(self):
-        # A simple, fixed path
-        await self.page.click('nav a[href="#blog"]')
-        await self.page.wait_for_selector("#search-input")  # Wait for blog page to render
-        await asyncio.sleep(1)
+        while self.should_continue():
+            # Click blog
+            await self.page.click('nav a[href="#blog"]')
+            await self.page.wait_for_selector("#search-input")
+            await asyncio.sleep(random.uniform(1, 2))
 
-        # Click the first "Read More" link it finds
-        await self.page.locator('a:has-text("Read More")').first.click()
-        await self.page.wait_for_selector("a:has-text('Back to Blog List')")  # Wait for detail page
-        await asyncio.sleep(1)
+            # Click the first "Read More" link it finds
+            if not self.should_continue():
+                break
+            await self.page.locator('a:has-text("Read More")').first.click()
+            await self.page.wait_for_selector("a:has-text('Back to Blog List')")
+            await asyncio.sleep(random.uniform(1, 2))
 
-        await self.page.click('nav a[href="#contact"]')
-        await self.page.wait_for_selector("#contact-form")  # Wait for contact page
-        await asyncio.sleep(1)
+            # Navigate with next/previous buttons
+            for _ in range(random.randint(1, 3)):
+                if not self.should_continue():
+                    break
+                action = random.choice(['next', 'previous'])
+                button = self.page.locator(f'a:has-text("{action.capitalize()}")')
+                if await button.is_visible():
+                    await button.click()
+                    await asyncio.sleep(random.uniform(0.5, 1.5))
 
-        await self.page.fill('#name', 'Test Bot')
-        await self.page.fill('#email', 'bot@test.com')
-        await self.page.fill('#message', 'This is a test message.')
-        await self.page.click('button[type="submit"]')
-        await asyncio.sleep(2)
+            # Go to contact
+            if not self.should_continue():
+                break
+            await self.page.click('nav a[href="#contact"]')
+            await self.page.wait_for_selector("#contact-form")
+            await asyncio.sleep(1)
+
+            await self.page.fill('#name', 'Test Bot')
+            await self.page.fill('#email', 'bot@test.com')
+            await self.page.fill('#message', 'This is a test message.')
+            await self.page.click('button[type="submit"]')
+            await asyncio.sleep(random.uniform(2, 3))
+
+            # Go home
+            if self.should_continue():
+                await self.page.click('nav a:has-text("Home")')
+                await asyncio.sleep(random.uniform(1, 2))
 
         await self.page.close()
 
@@ -149,7 +211,8 @@ class HumanishBot(BaseBot):
             target_x = box['x'] + box['width'] / 2
             target_y = box['y'] + box['height'] / 2
             await self.page.mouse.move(target_x, target_y, steps=5)
-            await locator.click()  # Use the locator's robust click
+            await asyncio.sleep(random.uniform(0.2, 0.5))  # Pause before click
+            await locator.click()
 
     async def type_text(self, selector, text):
         min_delay = self.config["typing_delay_min"]
@@ -161,25 +224,38 @@ class HumanishBot(BaseBot):
     async def read_a_blog_post(self):
         """Simulates reading a blog post with scrolling and a chance to navigate."""
         print(f"Bot {self.bot_id}: Reading a blog post...")
-        await asyncio.sleep(random.uniform(2, 4))
-        # Scroll down the page
-        for _ in range(random.randint(2, 5)):
+        
+        # More mouse movements and interactions
+        await self.idle_mouse_movements(duration=random.uniform(1, 3))
+        
+        # Scroll down the page with mouse movements between scrolls
+        for _ in range(random.randint(2, 4)):
+            if not self.should_continue():
+                break
             await self.page.mouse.wheel(0, random.randint(200, 500))
-            await asyncio.sleep(random.uniform(0.5, 1.5))
+            await asyncio.sleep(random.uniform(0.8, 2))
+            await self.idle_mouse_movements(duration=random.uniform(0.5, 1.5))
 
         # Randomly decide to click next, previous, or go back
-        action = random.choice(['next', 'previous', 'back', 'back'])
-        if action == 'next':
-            next_button = self.page.locator('a:has-text("Next")')
-            if await next_button.is_visible():
-                await self.move_and_click(next_button)
-                await self.page.wait_for_selector("a:has-text('Back to Blog List')")
-                await self.read_a_blog_post()  # Read the next post
-        elif action == 'previous':
-            prev_button = self.page.locator('a:has-text("Previous")')
-            if await prev_button.is_visible():
-                await self.move_and_click(prev_button)
-                await self.page.wait_for_selector("a:has-text('Back to Blog List')")
+        navigation_attempts = random.randint(1, 3)
+        for _ in range(navigation_attempts):
+            if not self.should_continue():
+                break
+            action = random.choice(['next', 'previous', 'back'])
+            if action == 'next':
+                next_button = self.page.locator('a:has-text("Next")')
+                if await next_button.is_visible():
+                    await self.move_and_click(next_button)
+                    await self.page.wait_for_selector("a:has-text('Back to Blog List')")
+                    await asyncio.sleep(random.uniform(1, 2))
+            elif action == 'previous':
+                prev_button = self.page.locator('a:has-text("Previous")')
+                if await prev_button.is_visible():
+                    await self.move_and_click(prev_button)
+                    await self.page.wait_for_selector("a:has-text('Back to Blog List')")
+                    await asyncio.sleep(random.uniform(1, 2))
+            else:
+                break
 
     async def browse_blog_list(self):
         """Simulates browsing the main blog page and picking an article."""
@@ -188,9 +264,13 @@ class HumanishBot(BaseBot):
         await self.page.wait_for_selector("#search-input")
         await asyncio.sleep(random.uniform(2, 4))
 
+        # More interactive behavior - hover over elements
+        await self.idle_mouse_movements(duration=random.uniform(1, 3))
+
         # Scroll around a bit
         await self.page.mouse.wheel(0, random.randint(300, 600))
-        await asyncio.sleep(random.uniform(1, 3))
+        await asyncio.sleep(random.uniform(1, 2))
+        await self.idle_mouse_movements(duration=random.uniform(1, 2))
 
         # Pick a random blog to read
         all_posts = await self.page.locator('a:has-text("Read More")').all()
@@ -203,24 +283,43 @@ class HumanishBot(BaseBot):
         print(f"Bot {self.bot_id}: Filling contact form...")
         await self.move_and_click(self.page.locator('nav a[href="#contact"]'))
         await self.page.wait_for_selector("#contact-form")
+        
+        # Move mouse around before filling
+        await self.idle_mouse_movements(duration=random.uniform(1, 2))
+        
         await self.type_text('#name', 'Humanish Bot')
+        await asyncio.sleep(random.uniform(0.5, 1))
         await self.type_text('#email', 'humanish@test.com')
+        await asyncio.sleep(random.uniform(0.5, 1))
         await self.type_text('#message', 'This is a carefully typed test message.')
+        await asyncio.sleep(random.uniform(1, 2))
+        
         await self.move_and_click(self.page.locator('button[type="submit"]'))
         await asyncio.sleep(random.uniform(2, 4))
 
     async def surf_website(self):
         """A random sequence of actions to simulate a session."""
         await asyncio.sleep(random.uniform(1, 3))
+        await self.idle_mouse_movements(duration=random.uniform(2, 4))
 
-        # Perform a random number of high-level actions
-        for _ in range(random.randint(1, 2)):
-            action = random.choice([self.browse_blog_list, self.browse_blog_list, self.browse_blog_list, self.fill_contact_form])
+        # Keep performing actions until lifetime expires
+        while self.should_continue():
+            action = random.choice([
+                self.browse_blog_list, 
+                self.browse_blog_list, 
+                self.browse_blog_list, 
+                self.fill_contact_form
+            ])
             await action()
-            # Go home between actions sometimes
-            if random.random() < 0.5:
+            
+            if not self.should_continue():
+                break
+                
+            # Go home between actions
+            if random.random() < 0.6:
                 await self.move_and_click(self.page.locator('nav a:has-text("Home")'))
                 await self.page.wait_for_selector("h1:has-text('Welcome to the Playground')")
+                await self.idle_mouse_movements(duration=random.uniform(1, 3))
 
         await self.page.close()
 
@@ -247,20 +346,18 @@ class AdvancedBot(BaseBot):
         max_delay = self.config["scroll_delay_max"]
 
         while not await self.is_in_viewport(locator):
-            # print(self.page.viewport_size)
             box = await locator.bounding_box()
-            if not box: return  # Element disappeared
+            if not box: return
 
             # Determine scroll direction
-            if box['y'] < 0:  # Element is above the viewport
+            if box['y'] < 0:
                 await self.page.mouse.wheel(0, -scroll_amount)
-            elif box['y'] + box['height'] > self.page.viewport_size['height']:  # Element is below
+            elif box['y'] + box['height'] > self.page.viewport_size['height']:
                 await self.page.mouse.wheel(0, scroll_amount)
 
             await asyncio.sleep(random.uniform(min_delay, max_delay))
 
     async def move_and_click(self, locator):
-        # print(locator)
         await self.scroll_to_element(locator)
         await locator.wait_for(state='visible')
         box = await locator.bounding_box()
@@ -273,7 +370,8 @@ class AdvancedBot(BaseBot):
             for x, y in path:
                 await self.page.mouse.move(x, y)
                 await asyncio.sleep(0.01)
-            await locator.click()  # Use the locator's robust click
+            await asyncio.sleep(random.uniform(0.3, 0.7))  # Pause before click
+            await locator.click()
 
     async def type_text(self, selector, text):
         min_delay = self.config["typing_delay_min"]
@@ -287,18 +385,29 @@ class AdvancedBot(BaseBot):
 
     async def read_a_blog_post(self):
         print(f"Bot {self.bot_id}: Reading a blog post...")
-        await asyncio.sleep(random.uniform(3, 6))
-        for _ in range(random.randint(4, 8)):
+        
+        # Extended mouse movements before reading
+        await self.idle_mouse_movements(duration=random.uniform(2, 4))
+        
+        # Scroll with more interactions
+        for _ in range(random.randint(3, 6)):
+            if not self.should_continue():
+                break
             await self.page.mouse.wheel(0, random.randint(100, 300))
-            await asyncio.sleep(random.uniform(0.5, 1.5))
+            await asyncio.sleep(random.uniform(0.8, 1.8))
+            await self.idle_mouse_movements(duration=random.uniform(0.5, 1.5))
 
-        for _ in range(random.randint(1, 3)):  # Chance to navigate multiple times
+        # Navigate between posts with more interactions
+        for _ in range(random.randint(1, 3)):
+            if not self.should_continue():
+                break
             action = random.choice(['next', 'previous', 'back'])
             if action == 'next':
                 locator = self.page.locator('a:has-text("Next")')
                 if await locator.is_visible():
                     await self.move_and_click(locator)
                     await self.page.wait_for_selector("a:has-text('Back to Blog List')")
+                    await self.idle_mouse_movements(duration=random.uniform(1, 2))
                 else:
                     break
             elif action == 'previous':
@@ -306,9 +415,10 @@ class AdvancedBot(BaseBot):
                 if await locator.is_visible():
                     await self.move_and_click(locator)
                     await self.page.wait_for_selector("a:has-text('Back to Blog List')")
+                    await self.idle_mouse_movements(duration=random.uniform(1, 2))
                 else:
                     break
-            else:  # Go back to list
+            else:
                 break
 
     async def browse_blog_list(self):
@@ -316,12 +426,16 @@ class AdvancedBot(BaseBot):
         await self.move_and_click(self.page.locator('nav a[href="#blog"]'))
         await self.page.wait_for_selector("#search-input")
         await asyncio.sleep(random.uniform(2, 4))
+        
+        # More interactive exploration
+        await self.idle_mouse_movements(duration=random.uniform(2, 4))
 
-        if random.random() < 0.33:  # 33% chance to use search
+        if random.random() < 0.33:
             print(f"Bot {self.bot_id}: Using search...")
             search_term = random.choice(['security', 'network', 'data', 'web'])
             await self.type_text('#search-input', search_term)
             await asyncio.sleep(random.uniform(1, 3))
+            await self.idle_mouse_movements(duration=random.uniform(1, 2))
 
         all_posts = await self.page.locator('a:has-text("Read More")').all()
         visible_posts = [p for p in all_posts if await p.is_visible()]
@@ -334,27 +448,52 @@ class AdvancedBot(BaseBot):
         print(f"Bot {self.bot_id}: Filling contact form...")
         await self.move_and_click(self.page.locator('nav a[href="#contact"]'))
         await self.page.wait_for_selector("#contact-form")
+        
+        # More realistic pre-form behavior
+        await self.idle_mouse_movements(duration=random.uniform(2, 3))
+        
         await self.type_text('#name', 'Mimic Bot')
+        await asyncio.sleep(random.uniform(0.5, 1.5))
+        await self.idle_mouse_movements(duration=random.uniform(0.5, 1))
+        
         await self.type_text('#email', 'mimic@test.com')
+        await asyncio.sleep(random.uniform(0.5, 1.5))
+        await self.idle_mouse_movements(duration=random.uniform(0.5, 1))
+        
         await self.type_text('#message', 'This is a message to test the system.')
+        await asyncio.sleep(random.uniform(1, 2))
+        
         await self.move_and_click(self.page.locator('button[type="submit"]'))
         await asyncio.sleep(random.uniform(2, 4))
 
     async def surf_website(self):
         await asyncio.sleep(random.uniform(2, 4))
-        for _ in range(random.randint(2, 4)):
-            action = random.choice(
-                [self.browse_blog_list, self.fill_contact_form, self.browse_blog_list, self.browse_blog_list])  # Skew towards browsing
+        await self.idle_mouse_movements(duration=random.uniform(3, 6))
+        
+        # Continue until lifetime expires
+        while self.should_continue():
+            action = random.choice([
+                self.browse_blog_list, 
+                self.browse_blog_list, 
+                self.browse_blog_list, 
+                self.fill_contact_form
+            ])
             await action()
+            
+            if not self.should_continue():
+                break
+                
             await self.move_and_click(self.page.locator('nav a:has-text("Home")'))
             await self.page.wait_for_selector("h1:has-text('Welcome to the Playground')")
+            await self.idle_mouse_movements(duration=random.uniform(2, 4))
+            
         await self.page.close()
 
 
 # --- Tier 3: Mimic Bot ---
 class MimicBot(AdvancedBot):
     """An advanced bot that uses the complex, randomized exploration logic."""
-    pass  # Inherits all the advanced logic
+    pass
 
 
 # --- Tier 4: Fallible Bot ---
@@ -380,24 +519,21 @@ class FallibleBot(AdvancedBot):
             if not box: return
 
             scroll_direction = 0
-            # print(box['y'], box['y'] + box['height'], self.page.viewport_size['height'])
             if box['y'] < 0:
                 scroll_direction = -scroll_amount
             elif box['y'] + box['height'] > self.page.viewport_size['height']:
                 scroll_direction = scroll_amount
 
-            # Apply overshoot logic
             is_close_to_view = (scroll_direction > 0 and box['y'] < self.page.viewport_size['height'] * 1.5) or \
-                               (scroll_direction < 0 and box['y'] + box['height'] > -self.page.viewport_size[
-                                   'height'] * 0.5)
+                               (scroll_direction < 0 and box['y'] + box['height'] > -self.page.viewport_size['height'] * 0.5)
 
             if needs_overshoot and not overshot and is_close_to_view:
                 print(f"Bot {self.bot_id}: Overshooting scroll...")
                 overshoot_amount = scroll_direction * random.randint(2, 4)
                 await self.page.mouse.wheel(0, overshoot_amount)
                 overshot = True
-                needs_overshoot = False  # Don't overshoot again
-                await asyncio.sleep(random.uniform(0.2, 0.5))  # "Realization" pause
+                needs_overshoot = False
+                await asyncio.sleep(random.uniform(0.2, 0.5))
             else:
                 await self.page.mouse.wheel(0, scroll_direction)
 
@@ -425,8 +561,7 @@ class FallibleBot(AdvancedBot):
                     errors.append({'index': len(flawed_text), 'correct_char': char, 'type': 'deletion'})
                 elif error_type == 'transposition' and i + 1 < len(text):
                     flawed_text += text[i + 1] + text[i]
-                    errors.append(
-                        {'index': len(flawed_text) - 2, 'correct_pair': text[i:i + 2], 'type': 'transposition'})
+                    errors.append({'index': len(flawed_text) - 2, 'correct_pair': text[i:i + 2], 'type': 'transposition'})
                     i += 1
                 else:
                     flawed_text += char
@@ -467,7 +602,7 @@ class FallibleBot(AdvancedBot):
 
     async def move_and_click(self, locator, overshoot_chance=0.3):
         """Overrides the base move_and_click to add overshooting."""
-        await self.scroll_to_element(locator)  # Use the fallible scroll
+        await self.scroll_to_element(locator)
         await locator.wait_for(state='visible')
         box = await locator.bounding_box()
         if box:
@@ -506,20 +641,22 @@ async def main():
         "typing_delay_max": 0.35,
     }
 
-    N = 3
-    for _ in range(N):
-        await NaiveBot(bot_id=1, config=slower_config).run()
-        await HumanishBot(bot_id=2, config=slower_config).run()
-        await MimicBot(bot_id=3, config=slower_config).run()
-        await FallibleBot(bot_id=4, config=slower_config).run()
+    # N = 3
+    # for _ in range(N):
+    #     await NaiveBot(bot_id=1, config=slower_config).run()
+    #     await HumanishBot(bot_id=2, config=slower_config).run()
+    #     await MimicBot(bot_id=3, config=slower_config).run()
+    #     await FallibleBot(bot_id=4, config=slower_config).run()
 
-        # tasks = [
-        #     # NaiveBot(bot_id=1, config=slower_config).run(),
-        #     HumanishBot(bot_id=2, config=slower_config).run(),
-        #     MimicBot(bot_id=3, config=slower_config).run(),
-        #     FallibleBot(bot_id=4, config=slower_config).run(),
-        # ]
-        # await asyncio.gather(*tasks)
+    N = 10
+    for _ in range(N):
+        tasks = [
+            # NaiveBot(bot_id=1, config=slower_config).run(),
+            # HumanishBot(bot_id=2, config=DEFAULT_CONFIG).run(),
+            # MimicBot(bot_id=3, config=DEFAULT_CONFIG).run(),
+            FallibleBot(bot_id=4, config=DEFAULT_CONFIG).run(),
+        ]
+        await asyncio.gather(*tasks)
 
 
 if __name__ == "__main__":

@@ -2,49 +2,96 @@ import json
 import os
 import random
 import time
-import requests
-import numpy as np
-from datetime import datetime
 import atexit
+from copy import deepcopy
+from scoring_service.HumanityScorer import scorer
 
 # Import the new offline agent
 from rl_service_offline import offline_rl_agent
 
 # --- Configuration ---
 DATA_DIR = "data"
-HUMANITY_SCORE_PREDICTOR_URL = "http://127.0.0.1:8000/predict"
+# HUMANITY_SCORE_PREDICTOR_URL = "http://127.0.0.1:8000/predict"
 MODEL_SAVE_PATH = "models/offline_rl_model.pth"
 
 # Simulation Hyperparameters
-TARGET_HUMAN_COUNT = 100  # Number of "real" human users to simulate
-TARGET_BOT_COUNT = 80  # Number of bot users to simulate (for DoS)
+TARGET_HUMAN_COUNT = int(random.random() * 20) + 80   # Between 80-100  # Number of "real" human users to simulate
+TARGET_BOT_COUNT = random.choice([0, 20, 50, 100, 200])  # Number of bot users to simulate (for DoS)
 SIMULATION_STEP_SECONDS = 10  # How often the RL agent is called (matches frontend)
 SESSION_CHUNK_SIZE = int(SIMULATION_STEP_SECONDS * 1000)  # In milliseconds
-TOTAL_EPISODES = 0
+TOTAL_EPISODES = 400
 BATCH_SIZE = 16
 TARGET_UPDATE_FREQUENCY = 400  # Update target network every 10 steps
+
+TRAIN_DQN = True
+SAVE_DQN = True
+HUMAN_COMFORT_FACTOR = 3
+
+REWARDS = {}
+conf = {
+    "human": {
+        "predicted": {
+            "human": 0,
+            "bot": 0
+        }
+    },
+    "bot": {
+        "predicted": {
+            "human": 0,
+            "bot": 0
+        }
+    }
+}
 
 
 # --- Utility Functions ---
 
+# def get_humanity_score(mouse_movement):
+#     """Calls the external humanity score ML model."""
+#     if not mouse_movement: return 0.5
+#     # Format for the ML model
+#     formatted_movements = [[m['x'], m['y']] for m in mouse_movement]
+#     payload = {"mouse_movement": formatted_movements}
+#     try:
+#         response = requests.post(HUMANITY_SCORE_PREDICTOR_URL, json=payload, timeout=2)
+#         if response.status_code == 200:
+#             prediction = response.json().get("prediction")
+#             return prediction if prediction is not None else 0.5
+#         else:
+#             print(f"Humanity score predictor error: {response.status_code}")
+#             return 0.5
+#     except requests.exceptions.RequestException as e:
+#         print(f"Humanity score predictor connection error: {e}")
+#         return 0.5  # Return neutral score on error
+
+def update_human_bot_population():
+    global TARGET_HUMAN_COUNT
+    global TARGET_BOT_COUNT
+    global conf
+
+    TARGET_HUMAN_COUNT = int(random.random() * 20) + 80      # Between 80-100
+    TARGET_BOT_COUNT = random.choice([0, 20, 50, 100, 200])  # One of the choices
+    conf["human"]["predicted"]["human"] = 0
+    conf["human"]["predicted"]["bot"] = 0
+    conf["bot"]["predicted"]["human"] = 0
+    conf["bot"]["predicted"]["bot"] = 0
+
+
 def get_humanity_score(mouse_movement):
     """Calls the external humanity score ML model."""
-    if not mouse_movement: return 0.5
+    if not mouse_movement:
+        # print(type(mouse_movement), mouse_movement)
+        # print("Invalid mouse movement...")
+        return None
     # Format for the ML model
     formatted_movements = [[m['x'], m['y']] for m in mouse_movement]
-    payload = {"mouse_movement": formatted_movements}
     try:
-        response = requests.post(HUMANITY_SCORE_PREDICTOR_URL, json=payload, timeout=2)
-        if response.status_code == 200:
-            prediction = response.json().get("prediction")
-            return prediction if prediction is not None else 0.5
-        else:
-            print(f"Humanity score predictor error: {response.status_code}")
-            return 0.5
-    except requests.exceptions.RequestException as e:
+        prediction = scorer.predict(formatted_movements)
+        # print(prediction)
+        return prediction
+    except Exception as e:
         print(f"Humanity score predictor connection error: {e}")
         return 0.5  # Return neutral score on error
-
 
 def load_session_data(data_dir):
     """Loads all human and bot raw data files."""
@@ -75,8 +122,8 @@ def perturb_mouse_data(movements):
     """Creates a 'new' user by slightly altering existing mouse data."""
     if not movements: return []
     # Add small random noise to each coordinate
-    noise_x = random.randint(-5, 5)
-    noise_y = random.randint(-5, 5)
+    noise_x = random.randint(-5//5, 5//5)
+    noise_y = random.randint(-5//5, 5//5)
     return [{**m, 'x': m['x'] + noise_x, 'y': m['y'] + noise_y, 'timestamp': m['timestamp']} for m in movements]
 
 
@@ -116,6 +163,9 @@ class SimulatedUser:
         self.captchas_solved = 0
         self.last_captcha_solved = -1
         self.done = False  # Is this user's session over?
+        self.last_humanity_score = None
+        self.average_humanity_score = None
+        self.n_humanity_score = 0
 
         # *** NEW: Assign a "strength" to each bot ***
         # This is the max threat level (0-9) the bot can "beat"
@@ -150,9 +200,14 @@ class SimulatedUser:
 # --- Graceful Shutdown ---
 def shutdown_hook():
     """Save the model on exit."""
-    print("\nShutting down... Saving model...")
-    offline_rl_agent.save_model(MODEL_SAVE_PATH)
-    print("Model saved. Goodbye.")
+    if SAVE_DQN:
+        print("\nShutting down... Saving model...")
+        offline_rl_agent.save_model(MODEL_SAVE_PATH)
+        print("Model saved. Goodbye.")
+    print(conf)
+    print(REWARDS)
+    with open("offline_rewards.json", "w") as f:
+        json.dump(REWARDS, fp=f, indent=4)
 
 
 # --- Main Training Loop ---
@@ -167,7 +222,7 @@ def calculate_reward(user, threat_level):
     if user.is_bot:
         # *** NEW: Deterministic check against bot's strength ***
         if threat_level > user.bot_strength:
-            reward = 50.0 - (threat_level - user.bot_strength) * 5   # Caught bot
+            reward = 100.0 - (threat_level - user.bot_strength) * 5   # Caught bot
             done = True
             user.reset_session()
         else:
@@ -175,7 +230,7 @@ def calculate_reward(user, threat_level):
             user.captchas_solved += 1
     else:
         # Human reward is the same
-        reward = 5 - threat_level  # Human experience reward
+        reward = (5 - threat_level) * HUMAN_COMFORT_FACTOR  # Human experience reward
         user.captchas_solved += 1
 
     return reward, done
@@ -195,8 +250,10 @@ def run_offline_training():
     timesteps_without_training_tgt_net = 0
     start_time = time.time()
 
-    for episode in range(TOTAL_EPISODES):
+    for episode in range(300, TOTAL_EPISODES):
         print(f"\n--- Starting Episode {episode + 1}/{TOTAL_EPISODES} ---")
+
+        update_human_bot_population()
 
         # 1. Create the population for this episode
         print(f"Creating population: {TARGET_HUMAN_COUNT} humans, {TARGET_BOT_COUNT} bots")
@@ -231,13 +288,33 @@ def run_offline_training():
                 # 1. Get user's data and calculate current state s_t
                 mouse_data = user.get_step_data()
                 humanity_score = get_humanity_score(mouse_data)
-                client_req_rate_per_min = 6 + random.randint(-2, 2)
+
+                if humanity_score is None:
+                    # print(humanity_score, user.average_humanity_score, "handling")
+                    if user.average_humanity_score is None:
+                        humanity_score = 0.5
+                    else:
+                        humanity_score = user.average_humanity_score
+                else:
+                    user.last_humanity_score = humanity_score
+                    if user.average_humanity_score is None:
+                        user.average_humanity_score = humanity_score
+                    else:
+                        user.average_humanity_score = (user.average_humanity_score * user.n_humanity_score + humanity_score) / (user.n_humanity_score + 1)
+                    user.n_humanity_score += 1
+
+                # client_req_rate_per_min = 6 + random.randint(-2, 2)
+
+
+                conf["bot" if user.is_bot else "human"]["predicted"]["bot" if humanity_score >= .5 else "human"] += 1
+                # print(user.is_bot, humanity_score)
 
                 s_t = [
                     humanity_score,
+                    user.average_humanity_score if user.average_humanity_score is not None else 0.5,
                     user.captchas_solved,
-                    user.last_captcha_solved, # client_req_rate_per_min,
-                    server_req_rate_per_min,
+                    user.last_captcha_solved,   # client_req_rate_per_min, avg_h_score
+                    # server_req_rate_per_min,
                     server_total_users
                 ]
 
@@ -280,17 +357,18 @@ def run_offline_training():
             active_users = next_active_users
             pending_experiences = new_pending_experiences
 
-            # Train the model in batches
-            if len(offline_rl_agent.memory) > BATCH_SIZE * 2:  # Wait for a decent buffer
-                print(f"Step {global_step}: Updating behaviour network...")
-                offline_rl_agent.train_model(BATCH_SIZE)
+            if TRAIN_DQN:
+                # Train the model in batches
+                if len(offline_rl_agent.memory) > BATCH_SIZE * 2:  # Wait for a decent buffer
+                    print(f"Step {global_step}: Updating behaviour network...")
+                    offline_rl_agent.train_model(BATCH_SIZE)
 
-            # Update the target network periodically
-            # if global_step % TARGET_UPDATE_FREQUENCY == 0:
-            if timesteps_without_training_tgt_net >= TARGET_UPDATE_FREQUENCY:
-                print(f"Step {global_step}: Updating target network...")
-                offline_rl_agent.update_target_net()
-                timesteps_without_training_tgt_net -= TARGET_UPDATE_FREQUENCY
+                # Update the target network periodically
+                # if global_step % TARGET_UPDATE_FREQUENCY == 0:
+                if timesteps_without_training_tgt_net >= TARGET_UPDATE_FREQUENCY:
+                    print(f"Step {global_step}: Updating target network...")
+                    offline_rl_agent.update_target_net()
+                    timesteps_without_training_tgt_net -= TARGET_UPDATE_FREQUENCY
 
             if not active_users:
                 print(f"All users finished for episode {episode + 1}.")
@@ -303,8 +381,24 @@ def run_offline_training():
             offline_rl_agent.remember(s, a, r, s, True)  # Store as terminal
             episode_reward += r
 
-        print(f"Episode {episode + 1} finished in {total_steps_in_episode} steps. Total Reward: {episode_reward:.2f}")
+        print(f"""Episode {episode + 1} finished in {total_steps_in_episode} steps. Total Reward: {episode_reward:.2f},
+            Reward/Population: {episode_reward / (TARGET_BOT_COUNT + TARGET_HUMAN_COUNT) * 100}""")
         print(f"Current Epsilon: {offline_rl_agent.epsilon:.4f}")
+        REWARDS[episode+1] = {
+            "reward": episode_reward,
+            "epsilon": offline_rl_agent.epsilon,
+            "population": TARGET_HUMAN_COUNT + TARGET_BOT_COUNT,
+            "conf": deepcopy(conf)
+        }
+
+        if (episode + 1) % 10 == 0:
+            offline_rl_agent.save_model(MODEL_SAVE_PATH)
+            with open(f"offline_rewards_{episode+1}.json", "w") as f:
+                json.dump(REWARDS, fp=f, indent=4)
+            print(f"Saved model and rewards at episode {episode + 1}.")
+
+        if (episode + 1) % 100 == 0:
+            offline_rl_agent.save_model(f"models/offline_rl_model_3_{episode+1}.pth")
 
     # --- End of Training ---
     end_time = time.time()
@@ -313,6 +407,11 @@ def run_offline_training():
     print(f"Total global steps: {global_step}")
 
     # The shutdown hook will save the final model
+
+    print(conf)
+    print(REWARDS)
+    with open("offline_rewards.json", "w") as f:
+        json.dump(REWARDS, fp=f, indent=4)
 
 
 if __name__ == "__main__":

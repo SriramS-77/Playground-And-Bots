@@ -216,12 +216,12 @@ def shutdown_hook():
 
 if __name__ == '__main__':
     # Load the RL model on startup
-    rl_agent.load_model(MODEL_SAVE_PATH)
+    # rl_agent.load_model(MODEL_SAVE_PATH)
     # Register the shutdown hook to save the model on exit
-    atexit.register(shutdown_hook)
+    # atexit.register(shutdown_hook)
 
     # Register a signal handler for KeyboardInterrupt
     # signal.signal(signal.SIGINT, handle_interrupt)
 
     # Run the Flask app
-    app.run(debug=True, host="100.94.176.110", port=5000)
+    app.run(debug=True, host="127.0.0.1", port=5000)

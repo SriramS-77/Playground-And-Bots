@@ -206,6 +206,8 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
+
+# Project Stuff
 .idea/
 playground/data/
 playground/backup/
@@ -213,3 +215,9 @@ playground/models/
 
 **/*.json
 **/*.pth
+**/*.pt
+**/*.jsonl
+
+captcha-generator/
+balabit_dataset/
+web_bot_detection_dataset/

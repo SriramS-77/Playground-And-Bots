@@ -49,8 +49,8 @@ class ThreatAssessor:
         self.gamma = 0.99  # Discount factor
         self.epsilon = 1.0  # Exploration rate
         self.epsilon_min = 0.01
-        self.epsilon_decay = 0.9995   #0.9995  # Slower decay for offline training
-        self.learning_rate = 0.001
+        self.epsilon_decay = 0.9995   # Slower decay for offline training
+        self.learning_rate = 0.0005
 
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Offline RL Agent using device: {self.device}")
@@ -166,7 +166,7 @@ class ThreatAssessor:
 
         try:
             print(f"Loading offline model from {filepath}...")
-            checkpoint = torch.load(filepath, map_location=self.device)
+            checkpoint = torch.load(filepath, map_location=self.device, weights_only=False)
 
             self.policy_net.load_state_dict(checkpoint['policy_net_state_dict'])
             self.target_net.load_state_dict(checkpoint['target_net_state_dict'])

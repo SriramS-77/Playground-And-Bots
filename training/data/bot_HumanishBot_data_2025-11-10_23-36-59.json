@@ -1,0 +1,261 @@
+{
+    "bot_info": {
+        "bot_id": 2,
+        "bot_name": "HumanishBot",
+        "session_timestamp": 1762798019723
+    },
+    "mouse_movements": [
+        {
+            "x": 681,
+            "y": 615,
+            "timestamp": 1762798075620
+        },
+        {
+            "x": 548,
+            "y": 589,
+            "timestamp": 1762798075637
+        },
+        {
+            "x": 415,
+            "y": 562,
+            "timestamp": 1762798075653
+        },
+        {
+            "x": 149,
+            "y": 508,
+            "timestamp": 1762798075692
+        },
+        {
+            "x": 149,
+            "y": 508,
+            "timestamp": 1762798076220
+        },
+        {
+            "x": 722,
+            "y": 222,
+            "timestamp": 1762798079058
+        },
+        {
+            "x": 913,
+            "y": 127,
+            "timestamp": 1762798079074
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "timestamp": 1762798079091
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "timestamp": 1762798079430
+        },
+        {
+            "x": 683,
+            "y": 384,
+            "timestamp": 1762798079507
+        },
+        {
+            "x": 671,
+            "y": 393,
+            "timestamp": 1762798079540
+        },
+        {
+            "x": 660,
+            "y": 403,
+            "timestamp": 1762798079577
+        },
+        {
+            "x": 648,
+            "y": 412,
+            "timestamp": 1762798079623
+        },
+        {
+            "x": 637,
+            "y": 420,
+            "timestamp": 1762798079656
+        },
+        {
+            "x": 625,
+            "y": 429,
+            "timestamp": 1762798079689
+        },
+        {
+            "x": 614,
+            "y": 437,
+            "timestamp": 1762798079726
+        },
+        {
+            "x": 603,
+            "y": 444,
+            "timestamp": 1762798079766
+        },
+        {
+            "x": 591,
+            "y": 451,
+            "timestamp": 1762798079807
+        },
+        {
+            "x": 580,
+            "y": 458,
+            "timestamp": 1762798079856
+        },
+        {
+            "x": 569,
+            "y": 465,
+            "timestamp": 1762798079905
+        },
+        {
+            "x": 557,
+            "y": 471,
+            "timestamp": 1762798079953
+        },
+        {
+            "x": 546,
+            "y": 476,
+            "timestamp": 1762798080003
+        },
+        {
+            "x": 535,
+            "y": 482,
+            "timestamp": 1762798080059
+        },
+        {
+            "x": 524,
+            "y": 487,
+            "timestamp": 1762798080092
+        },
+        {
+            "x": 512,
+            "y": 491,
+            "timestamp": 1762798080142
+        },
+        {
+            "x": 501,
+            "y": 496,
+            "timestamp": 1762798080191
+        },
+        {
+            "x": 490,
+            "y": 499,
+            "timestamp": 1762798080223
+        },
+        {
+            "x": 479,
+            "y": 503,
+            "timestamp": 1762798080264
+        },
+        {
+            "x": 467,
+            "y": 506,
+            "timestamp": 1762798080305
+        },
+        {
+            "x": 456,
+            "y": 509,
+            "timestamp": 1762798080354
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1762798082003
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1762798082494
+        },
+        {
+            "x": 970,
+            "y": 102,
+            "timestamp": 1762798086573
+        },
+        {
+            "x": 763,
+            "y": 172,
+            "timestamp": 1762798086586
+        },
+        {
+            "x": 556,
+            "y": 243,
+            "timestamp": 1762798086602
+        },
+        {
+            "x": 349,
+            "y": 313,
+            "timestamp": 1762798086627
+        },
+        {
+            "x": 142,
+            "y": 384,
+            "timestamp": 1762798086643
+        },
+        {
+            "x": 142,
+            "y": 384,
+            "timestamp": 1762798087084
+        }
+    ],
+    "clicks": [
+        {
+            "x": 149,
+            "y": 508,
+            "target": "BUTTON",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700",
+            "text": "Send",
+            "timestamp": 1762798076209
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Home",
+            "timestamp": 1762798079421
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1762798082486
+        },
+        {
+            "x": 142,
+            "y": 384,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1762798087068
+        }
+    ],
+    "scrolls": [
+        {
+            "direction": "down",
+            "position": 491.20001220703125,
+            "timestamp": 1762798084893
+        },
+        {
+            "direction": "down",
+            "position": 2869.60009765625,
+            "timestamp": 1762798086476
+        },
+        {
+            "direction": "up",
+            "position": 0,
+            "timestamp": 1762798087092
+        }
+    ],
+    "keystrokes": [],
+    "captchas_solved": 1,
+    "timestamps": {
+        "start": 1762798069074,
+        "end": 1762798087125
+    },
+    "page_reloads": 0
+}

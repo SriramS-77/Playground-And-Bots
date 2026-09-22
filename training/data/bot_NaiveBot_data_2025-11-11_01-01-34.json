@@ -1,0 +1,89 @@
+{
+    "bot_info": {
+        "bot_id": 1,
+        "bot_name": "NaiveBot",
+        "session_timestamp": 1762803094927
+    },
+    "mouse_movements": [
+        {
+            "x": 1216,
+            "y": 516,
+            "timestamp": 1762803205266
+        },
+        {
+            "x": 1216,
+            "y": 468,
+            "timestamp": 1762803206033
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "timestamp": 1762803206966
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "timestamp": 1762803208048
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "timestamp": 1762803210166
+        }
+    ],
+    "clicks": [
+        {
+            "x": 1216,
+            "y": 516,
+            "target": "A",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700",
+            "text": "Next \u2192",
+            "timestamp": 1762803205251
+        },
+        {
+            "x": 1216,
+            "y": 468,
+            "target": "A",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700",
+            "text": "Next \u2192",
+            "timestamp": 1762803206020
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Contact",
+            "timestamp": 1762803206954
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "target": "BUTTON",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700",
+            "text": "Send",
+            "timestamp": 1762803208035
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Home",
+            "timestamp": 1762803210151
+        }
+    ],
+    "scrolls": [],
+    "keystrokes": [],
+    "captchas_solved": 0,
+    "timestamps": {
+        "start": 1762803204502,
+        "end": 1762803211171
+    },
+    "page_reloads": 0
+}

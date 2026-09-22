@@ -1,0 +1,186 @@
+{
+    "bot_info": {
+        "bot_id": 2,
+        "bot_name": "HumanishBot",
+        "session_timestamp": 1762802785708
+    },
+    "mouse_movements": [
+        {
+            "x": 501,
+            "y": 12,
+            "timestamp": 1762802788629
+        },
+        {
+            "x": 752,
+            "y": 19,
+            "timestamp": 1762802788644
+        },
+        {
+            "x": 1003,
+            "y": 25,
+            "timestamp": 1762802788660
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "timestamp": 1762802788677
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "timestamp": 1762802788724
+        },
+        {
+            "x": 1033,
+            "y": 127,
+            "timestamp": 1762802811927
+        },
+        {
+            "x": 812,
+            "y": 223,
+            "timestamp": 1762802811946
+        },
+        {
+            "x": 591,
+            "y": 318,
+            "timestamp": 1762802811959
+        },
+        {
+            "x": 370,
+            "y": 414,
+            "timestamp": 1762802811976
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "timestamp": 1762802811994
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "timestamp": 1762802812033
+        },
+        {
+            "x": 355,
+            "y": 414,
+            "timestamp": 1762802814679
+        },
+        {
+            "x": 560,
+            "y": 318,
+            "timestamp": 1762802814691
+        },
+        {
+            "x": 765,
+            "y": 223,
+            "timestamp": 1762802814709
+        },
+        {
+            "x": 971,
+            "y": 127,
+            "timestamp": 1762802814726
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1762802814742
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1762802814789
+        },
+        {
+            "x": 971,
+            "y": 102,
+            "timestamp": 1762802821276
+        },
+        {
+            "x": 766,
+            "y": 172,
+            "timestamp": 1762802821293
+        },
+        {
+            "x": 560,
+            "y": 242,
+            "timestamp": 1762802821309
+        },
+        {
+            "x": 355,
+            "y": 313,
+            "timestamp": 1762802821326
+        },
+        {
+            "x": 150,
+            "y": 383,
+            "timestamp": 1762802821342
+        },
+        {
+            "x": 150,
+            "y": 383,
+            "timestamp": 1762802821391
+        }
+    ],
+    "clicks": [
+        {
+            "x": 1254,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Contact",
+            "timestamp": 1762802788706
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "target": "BUTTON",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700",
+            "text": "Send",
+            "timestamp": 1762802812020
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1762802814769
+        },
+        {
+            "x": 150,
+            "y": 383,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1762802821369
+        }
+    ],
+    "scrolls": [
+        {
+            "direction": "down",
+            "position": 500,
+            "timestamp": 1762802818417
+        },
+        {
+            "direction": "down",
+            "position": 3078,
+            "timestamp": 1762802821248
+        },
+        {
+            "direction": "up",
+            "position": 0,
+            "timestamp": 1762802821398
+        }
+    ],
+    "keystrokes": [],
+    "captchas_solved": 4,
+    "timestamps": {
+        "start": 1762802785186,
+        "end": 1762802826017
+    },
+    "page_reloads": 0
+}

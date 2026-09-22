@@ -214,6 +214,10 @@ playground/backup/
 playground/models/
 
 **/*.json
+
+!training/**/*.json
+!offline/data/*.json
+
 **/*.pth
 **/*.pt
 **/*.jsonl
@@ -221,3 +225,8 @@ playground/models/
 captcha-generator/
 balabit_dataset/
 web_bot_detection_dataset/
+
+env/
+.env/
+venv/
+.venv/

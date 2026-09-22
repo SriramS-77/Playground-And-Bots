@@ -1,0 +1,411 @@
+{
+    "bot_info": {
+        "bot_id": 1,
+        "bot_name": "NaiveBot",
+        "session_timestamp": 1762802867512
+    },
+    "mouse_movements": [
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1762802928311
+        },
+        {
+            "x": 150,
+            "y": 341,
+            "timestamp": 1762802930211
+        },
+        {
+            "x": 1216,
+            "y": 516,
+            "timestamp": 1762802932127
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "timestamp": 1762802932677
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "timestamp": 1762802933794
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "timestamp": 1762802936326
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1762802937577
+        },
+        {
+            "x": 150,
+            "y": 341,
+            "timestamp": 1762802939143
+        },
+        {
+            "x": 1216,
+            "y": 516,
+            "timestamp": 1762802940427
+        },
+        {
+            "x": 1216,
+            "y": 468,
+            "timestamp": 1762802941760
+        },
+        {
+            "x": 1216,
+            "y": 468,
+            "timestamp": 1762802943078
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "timestamp": 1762802944510
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "timestamp": 1762802945626
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "timestamp": 1762802948027
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1762802949794
+        },
+        {
+            "x": 150,
+            "y": 341,
+            "timestamp": 1762802951577
+        },
+        {
+            "x": 1216,
+            "y": 516,
+            "timestamp": 1762802952759
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "timestamp": 1762802953410
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "timestamp": 1762802954510
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "timestamp": 1762802956709
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1762802957876
+        },
+        {
+            "x": 150,
+            "y": 341,
+            "timestamp": 1762802959159
+        },
+        {
+            "x": 1216,
+            "y": 516,
+            "timestamp": 1762802960926
+        },
+        {
+            "x": 164,
+            "y": 468,
+            "timestamp": 1762802961960
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "timestamp": 1762802962626
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "timestamp": 1762802963726
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "timestamp": 1762802965809
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1762802967044
+        }
+    ],
+    "clicks": [
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1762802928298
+        },
+        {
+            "x": 150,
+            "y": 341,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1762802930195
+        },
+        {
+            "x": 1216,
+            "y": 516,
+            "target": "A",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700",
+            "text": "Next \u2192",
+            "timestamp": 1762802932113
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Contact",
+            "timestamp": 1762802932664
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "target": "BUTTON",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700",
+            "text": "Send",
+            "timestamp": 1762802933781
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Home",
+            "timestamp": 1762802936313
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1762802937564
+        },
+        {
+            "x": 150,
+            "y": 341,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1762802939129
+        },
+        {
+            "x": 1216,
+            "y": 516,
+            "target": "A",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700",
+            "text": "Next \u2192",
+            "timestamp": 1762802940412
+        },
+        {
+            "x": 1216,
+            "y": 468,
+            "target": "A",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700",
+            "text": "Next \u2192",
+            "timestamp": 1762802941745
+        },
+        {
+            "x": 1216,
+            "y": 468,
+            "target": "A",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700",
+            "text": "Next \u2192",
+            "timestamp": 1762802943063
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Contact",
+            "timestamp": 1762802944496
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "target": "BUTTON",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700",
+            "text": "Send",
+            "timestamp": 1762802945613
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Home",
+            "timestamp": 1762802948013
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1762802949781
+        },
+        {
+            "x": 150,
+            "y": 341,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1762802951562
+        },
+        {
+            "x": 1216,
+            "y": 516,
+            "target": "A",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700",
+            "text": "Next \u2192",
+            "timestamp": 1762802952747
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Contact",
+            "timestamp": 1762802953397
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "target": "BUTTON",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700",
+            "text": "Send",
+            "timestamp": 1762802954498
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Home",
+            "timestamp": 1762802956696
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1762802957863
+        },
+        {
+            "x": 150,
+            "y": 341,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1762802959147
+        },
+        {
+            "x": 1216,
+            "y": 516,
+            "target": "A",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700",
+            "text": "Next \u2192",
+            "timestamp": 1762802960913
+        },
+        {
+            "x": 164,
+            "y": 468,
+            "target": "A",
+            "id": "",
+            "classes": "bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300",
+            "text": "\u2190 Previous",
+            "timestamp": 1762802961946
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Contact",
+            "timestamp": 1762802962613
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "target": "BUTTON",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700",
+            "text": "Send",
+            "timestamp": 1762802963713
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Home",
+            "timestamp": 1762802965797
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1762802967034
+        }
+    ],
+    "scrolls": [],
+    "keystrokes": [],
+    "captchas_solved": 2,
+    "timestamps": {
+        "start": 1762802927055,
+        "end": 1762802968670
+    },
+    "page_reloads": 0
+}

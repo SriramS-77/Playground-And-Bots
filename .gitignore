@@ -221,6 +221,14 @@ playground/models/
 **/*.pth
 **/*.pt
 **/*.jsonl
+logs*.txt
+*chain.txt
+*.png
+*.pdf
+*.json
+*.xlsx
+*.csv
+*.keras
 
 captcha-generator/
 balabit_dataset/

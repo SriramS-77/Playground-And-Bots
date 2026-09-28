@@ -1,0 +1,229 @@
+{
+    "bot_info": {
+        "bot_id": 2,
+        "bot_name": "HumanishBot",
+        "session_timestamp": 1755285290667
+    },
+    "mouse_movements": [
+        {
+            "x": 470,
+            "y": 12,
+            "timestamp": 1755285292201
+        },
+        {
+            "x": 706,
+            "y": 19,
+            "timestamp": 1755285292216
+        },
+        {
+            "x": 941,
+            "y": 25,
+            "timestamp": 1755285292234
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285292251
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285292330
+        },
+        {
+            "x": 969,
+            "y": 64,
+            "timestamp": 1755285298601
+        },
+        {
+            "x": 763,
+            "y": 97,
+            "timestamp": 1755285298616
+        },
+        {
+            "x": 556,
+            "y": 130,
+            "timestamp": 1755285298634
+        },
+        {
+            "x": 349,
+            "y": 162,
+            "timestamp": 1755285298649
+        },
+        {
+            "x": 142,
+            "y": 195,
+            "timestamp": 1755285298666
+        },
+        {
+            "x": 142,
+            "y": 195,
+            "timestamp": 1755285298723
+        },
+        {
+            "x": 556,
+            "y": 130,
+            "timestamp": 1755285305668
+        },
+        {
+            "x": 763,
+            "y": 97,
+            "timestamp": 1755285305684
+        },
+        {
+            "x": 969,
+            "y": 64,
+            "timestamp": 1755285305700
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285305717
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285305760
+        },
+        {
+            "x": 969,
+            "y": 102,
+            "timestamp": 1755285309017
+        },
+        {
+            "x": 763,
+            "y": 172,
+            "timestamp": 1755285309034
+        },
+        {
+            "x": 556,
+            "y": 242,
+            "timestamp": 1755285309050
+        },
+        {
+            "x": 349,
+            "y": 313,
+            "timestamp": 1755285309067
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "timestamp": 1755285309084
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "timestamp": 1755285309124
+        },
+        {
+            "x": 357,
+            "y": 400,
+            "timestamp": 1755285316968
+        },
+        {
+            "x": 572,
+            "y": 417,
+            "timestamp": 1755285316984
+        },
+        {
+            "x": 786,
+            "y": 434,
+            "timestamp": 1755285317001
+        },
+        {
+            "x": 1001,
+            "y": 451,
+            "timestamp": 1755285317018
+        },
+        {
+            "x": 1216,
+            "y": 468,
+            "timestamp": 1755285317034
+        },
+        {
+            "x": 1216,
+            "y": 468,
+            "timestamp": 1755285317075
+        }
+    ],
+    "clicks": [
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1755285292280
+        },
+        {
+            "x": 142,
+            "y": 195,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1755285298696
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1755285305747
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1755285309111
+        },
+        {
+            "x": 1216,
+            "y": 468,
+            "target": "A",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700",
+            "text": "Next \u2192",
+            "timestamp": 1755285317062
+        }
+    ],
+    "scrolls": [
+        {
+            "direction": "down",
+            "position": 354,
+            "timestamp": 1755285295539
+        },
+        {
+            "direction": "up",
+            "position": 0,
+            "timestamp": 1755285298730
+        },
+        {
+            "direction": "down",
+            "position": 336,
+            "timestamp": 1755285307906
+        },
+        {
+            "direction": "down",
+            "position": 3494,
+            "timestamp": 1755285308991
+        },
+        {
+            "direction": "up",
+            "position": 0,
+            "timestamp": 1755285309140
+        }
+    ],
+    "keystrokes": [],
+    "timestamps": {
+        "start": 1755285290115,
+        "end": 1755285324511
+    },
+    "page_reloads": 0
+}

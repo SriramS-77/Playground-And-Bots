@@ -1,0 +1,214 @@
+{
+    "bot_info": {
+        "bot_id": 2,
+        "bot_name": "HumanishBot",
+        "session_timestamp": 1755285214761
+    },
+    "mouse_movements": [
+        {
+            "x": 235,
+            "y": 6,
+            "timestamp": 1755285217076
+        },
+        {
+            "x": 470,
+            "y": 12,
+            "timestamp": 1755285217093
+        },
+        {
+            "x": 706,
+            "y": 19,
+            "timestamp": 1755285217111
+        },
+        {
+            "x": 941,
+            "y": 25,
+            "timestamp": 1755285217125
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285217143
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285217226
+        },
+        {
+            "x": 763,
+            "y": 303,
+            "timestamp": 1755285222842
+        },
+        {
+            "x": 556,
+            "y": 439,
+            "timestamp": 1755285222859
+        },
+        {
+            "x": 349,
+            "y": 574,
+            "timestamp": 1755285222877
+        },
+        {
+            "x": 142,
+            "y": 710,
+            "timestamp": 1755285222893
+        },
+        {
+            "x": 142,
+            "y": 710,
+            "timestamp": 1755285222944
+        },
+        {
+            "x": 587,
+            "y": 439,
+            "timestamp": 1755285229076
+        },
+        {
+            "x": 809,
+            "y": 303,
+            "timestamp": 1755285229094
+        },
+        {
+            "x": 1032,
+            "y": 167,
+            "timestamp": 1755285229110
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "timestamp": 1755285229126
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "timestamp": 1755285229187
+        },
+        {
+            "x": 1033,
+            "y": 127,
+            "timestamp": 1755285237628
+        },
+        {
+            "x": 812,
+            "y": 223,
+            "timestamp": 1755285237644
+        },
+        {
+            "x": 591,
+            "y": 318,
+            "timestamp": 1755285237661
+        },
+        {
+            "x": 370,
+            "y": 414,
+            "timestamp": 1755285237677
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "timestamp": 1755285237694
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "timestamp": 1755285237734
+        },
+        {
+            "x": 340,
+            "y": 414,
+            "timestamp": 1755285240060
+        },
+        {
+            "x": 531,
+            "y": 318,
+            "timestamp": 1755285240077
+        },
+        {
+            "x": 722,
+            "y": 223,
+            "timestamp": 1755285240095
+        },
+        {
+            "x": 913,
+            "y": 127,
+            "timestamp": 1755285240111
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "timestamp": 1755285240127
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "timestamp": 1755285240169
+        }
+    ],
+    "clicks": [
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1755285217174
+        },
+        {
+            "x": 142,
+            "y": 710,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1755285222921
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Contact",
+            "timestamp": 1755285229163
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "target": "BUTTON",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700",
+            "text": "Send",
+            "timestamp": 1755285237722
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Home",
+            "timestamp": 1755285240155
+        }
+    ],
+    "scrolls": [
+        {
+            "direction": "down",
+            "position": 463,
+            "timestamp": 1755285221065
+        },
+        {
+            "direction": "up",
+            "position": 0,
+            "timestamp": 1755285222950
+        }
+    ],
+    "keystrokes": [],
+    "timestamps": {
+        "start": 1755285214200,
+        "end": 1755285240178
+    },
+    "page_reloads": 0
+}

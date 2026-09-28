@@ -1,0 +1,234 @@
+{
+    "bot_info": {
+        "bot_id": 2,
+        "bot_name": "HumanishBot",
+        "session_timestamp": 1755285517640
+    },
+    "mouse_movements": [
+        {
+            "x": 235,
+            "y": 6,
+            "timestamp": 1755285520105
+        },
+        {
+            "x": 470,
+            "y": 12,
+            "timestamp": 1755285520121
+        },
+        {
+            "x": 706,
+            "y": 19,
+            "timestamp": 1755285520138
+        },
+        {
+            "x": 941,
+            "y": 25,
+            "timestamp": 1755285520153
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285520173
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285520278
+        },
+        {
+            "x": 969,
+            "y": 102,
+            "timestamp": 1755285526987
+        },
+        {
+            "x": 763,
+            "y": 172,
+            "timestamp": 1755285527004
+        },
+        {
+            "x": 556,
+            "y": 242,
+            "timestamp": 1755285527020
+        },
+        {
+            "x": 349,
+            "y": 313,
+            "timestamp": 1755285527037
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "timestamp": 1755285527054
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "timestamp": 1755285527102
+        },
+        {
+            "x": 151,
+            "y": 426,
+            "timestamp": 1755285535121
+        },
+        {
+            "x": 155,
+            "y": 448,
+            "timestamp": 1755285535138
+        },
+        {
+            "x": 160,
+            "y": 470,
+            "timestamp": 1755285535156
+        },
+        {
+            "x": 164,
+            "y": 492,
+            "timestamp": 1755285535170
+        },
+        {
+            "x": 164,
+            "y": 492,
+            "timestamp": 1755285535211
+        },
+        {
+            "x": 569,
+            "y": 308,
+            "timestamp": 1755285535306
+        },
+        {
+            "x": 771,
+            "y": 216,
+            "timestamp": 1755285535321
+        },
+        {
+            "x": 974,
+            "y": 124,
+            "timestamp": 1755285535338
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285535354
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285535394
+        },
+        {
+            "x": 969,
+            "y": 102,
+            "timestamp": 1755285540537
+        },
+        {
+            "x": 763,
+            "y": 172,
+            "timestamp": 1755285540555
+        },
+        {
+            "x": 556,
+            "y": 242,
+            "timestamp": 1755285540572
+        },
+        {
+            "x": 349,
+            "y": 313,
+            "timestamp": 1755285540587
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "timestamp": 1755285540605
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "timestamp": 1755285540645
+        }
+    ],
+    "clicks": [
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1755285520240
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1755285527082
+        },
+        {
+            "x": 164,
+            "y": 492,
+            "target": "A",
+            "id": "",
+            "classes": "bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300",
+            "text": "\u2190 Previous",
+            "timestamp": 1755285535199
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1755285535383
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1755285540632
+        }
+    ],
+    "scrolls": [
+        {
+            "direction": "down",
+            "position": 507,
+            "timestamp": 1755285524093
+        },
+        {
+            "direction": "down",
+            "position": 2870,
+            "timestamp": 1755285526959
+        },
+        {
+            "direction": "up",
+            "position": 0,
+            "timestamp": 1755285527111
+        },
+        {
+            "direction": "down",
+            "position": 577,
+            "timestamp": 1755285538877
+        },
+        {
+            "direction": "down",
+            "position": 2870,
+            "timestamp": 1755285540512
+        },
+        {
+            "direction": "up",
+            "position": 0,
+            "timestamp": 1755285540661
+        }
+    ],
+    "keystrokes": [],
+    "timestamps": {
+        "start": 1755285517083,
+        "end": 1755285545936
+    },
+    "page_reloads": 0
+}

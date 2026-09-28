@@ -1,0 +1,185 @@
+{
+    "bot_info": {
+        "bot_id": 2,
+        "bot_name": "HumanishBot",
+        "session_timestamp": 1755285330845
+    },
+    "mouse_movements": [
+        {
+            "x": 235,
+            "y": 6,
+            "timestamp": 1755285332953
+        },
+        {
+            "x": 470,
+            "y": 12,
+            "timestamp": 1755285332969
+        },
+        {
+            "x": 706,
+            "y": 19,
+            "timestamp": 1755285332986
+        },
+        {
+            "x": 941,
+            "y": 25,
+            "timestamp": 1755285333002
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285333020
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285333123
+        },
+        {
+            "x": 969,
+            "y": 102,
+            "timestamp": 1755285338654
+        },
+        {
+            "x": 763,
+            "y": 172,
+            "timestamp": 1755285338670
+        },
+        {
+            "x": 556,
+            "y": 242,
+            "timestamp": 1755285338688
+        },
+        {
+            "x": 349,
+            "y": 313,
+            "timestamp": 1755285338704
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "timestamp": 1755285338720
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "timestamp": 1755285338773
+        },
+        {
+            "x": 572,
+            "y": 417,
+            "timestamp": 1755285346921
+        },
+        {
+            "x": 786,
+            "y": 434,
+            "timestamp": 1755285346938
+        },
+        {
+            "x": 1001,
+            "y": 451,
+            "timestamp": 1755285346955
+        },
+        {
+            "x": 1216,
+            "y": 468,
+            "timestamp": 1755285346970
+        },
+        {
+            "x": 1216,
+            "y": 468,
+            "timestamp": 1755285347011
+        },
+        {
+            "x": 1005,
+            "y": 472,
+            "timestamp": 1755285353570
+        },
+        {
+            "x": 795,
+            "y": 477,
+            "timestamp": 1755285353589
+        },
+        {
+            "x": 585,
+            "y": 482,
+            "timestamp": 1755285353604
+        },
+        {
+            "x": 374,
+            "y": 487,
+            "timestamp": 1755285353622
+        },
+        {
+            "x": 164,
+            "y": 492,
+            "timestamp": 1755285353638
+        },
+        {
+            "x": 164,
+            "y": 492,
+            "timestamp": 1755285353677
+        }
+    ],
+    "clicks": [
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1755285333055
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1755285338748
+        },
+        {
+            "x": 1216,
+            "y": 468,
+            "target": "A",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700",
+            "text": "Next \u2192",
+            "timestamp": 1755285346998
+        },
+        {
+            "x": 164,
+            "y": 492,
+            "target": "A",
+            "id": "",
+            "classes": "bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300",
+            "text": "\u2190 Previous",
+            "timestamp": 1755285353665
+        }
+    ],
+    "scrolls": [
+        {
+            "direction": "down",
+            "position": 482,
+            "timestamp": 1755285336809
+        },
+        {
+            "direction": "down",
+            "position": 1622,
+            "timestamp": 1755285338628
+        },
+        {
+            "direction": "up",
+            "position": 0,
+            "timestamp": 1755285338782
+        }
+    ],
+    "keystrokes": [],
+    "timestamps": {
+        "start": 1755285330288,
+        "end": 1755285353687
+    },
+    "page_reloads": 0
+}

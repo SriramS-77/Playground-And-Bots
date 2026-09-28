@@ -213,10 +213,11 @@ playground/data/
 playground/backup/
 playground/models/
 
-**/*.json
+*.json
 
-!training/**/*.json
+!training/data/*.json
 !offline/data/*.json
+!offline/train_data/*.json
 
 **/*.pth
 **/*.pt
@@ -225,7 +226,6 @@ logs*.txt
 *chain.txt
 *.png
 *.pdf
-*.json
 *.xlsx
 *.csv
 *.keras

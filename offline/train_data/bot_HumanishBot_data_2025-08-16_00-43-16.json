@@ -1,0 +1,107 @@
+{
+    "bot_info": {
+        "bot_id": 2,
+        "bot_name": "HumanishBot",
+        "session_timestamp": 1755285196801
+    },
+    "mouse_movements": [
+        {
+            "x": 235,
+            "y": 6,
+            "timestamp": 1755285198879
+        },
+        {
+            "x": 470,
+            "y": 12,
+            "timestamp": 1755285198891
+        },
+        {
+            "x": 706,
+            "y": 19,
+            "timestamp": 1755285198907
+        },
+        {
+            "x": 941,
+            "y": 25,
+            "timestamp": 1755285198924
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285198941
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285199042
+        },
+        {
+            "x": 969,
+            "y": 141,
+            "timestamp": 1755285204541
+        },
+        {
+            "x": 763,
+            "y": 250,
+            "timestamp": 1755285204558
+        },
+        {
+            "x": 556,
+            "y": 359,
+            "timestamp": 1755285204574
+        },
+        {
+            "x": 349,
+            "y": 468,
+            "timestamp": 1755285204591
+        },
+        {
+            "x": 142,
+            "y": 577,
+            "timestamp": 1755285204607
+        },
+        {
+            "x": 142,
+            "y": 577,
+            "timestamp": 1755285204662
+        }
+    ],
+    "clicks": [
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1755285198977
+        },
+        {
+            "x": 142,
+            "y": 577,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1755285204635
+        }
+    ],
+    "scrolls": [
+        {
+            "direction": "down",
+            "position": 596,
+            "timestamp": 1755285202480
+        },
+        {
+            "direction": "up",
+            "position": 0,
+            "timestamp": 1755285204668
+        }
+    ],
+    "keystrokes": [],
+    "timestamps": {
+        "start": 1755285196241,
+        "end": 1755285210055
+    },
+    "page_reloads": 0
+}

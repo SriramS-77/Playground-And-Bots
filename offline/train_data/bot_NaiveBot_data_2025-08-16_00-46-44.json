@@ -1,0 +1,74 @@
+{
+    "bot_info": {
+        "bot_id": 1,
+        "bot_name": "NaiveBot",
+        "session_timestamp": 1755285404322
+    },
+    "mouse_movements": [
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285404444
+        },
+        {
+            "x": 142,
+            "y": 341,
+            "timestamp": 1755285405516
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "timestamp": 1755285406599
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "timestamp": 1755285407733
+        }
+    ],
+    "clicks": [
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1755285404392
+        },
+        {
+            "x": 142,
+            "y": 341,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1755285405489
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Contact",
+            "timestamp": 1755285406573
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "target": "BUTTON",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700",
+            "text": "Send",
+            "timestamp": 1755285407724
+        }
+    ],
+    "scrolls": [],
+    "keystrokes": [],
+    "timestamps": {
+        "start": 1755285403780,
+        "end": 1755285409754
+    },
+    "page_reloads": 0
+}

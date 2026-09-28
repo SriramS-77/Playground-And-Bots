@@ -23,13 +23,30 @@ them properly and, where noted, to settle questions the CPU budget could not.
    -> 6,081 parameters
    ```
 
-   Measured at the **chunk** operating point, deduplicated, grouped 5-fold CV over all
-   156 recordings, 2 seeds: **AUC 0.975 ± 0.001, ECE 0.010**, `corr(score, padding)` 0.22.
+   Measured at the **chunk** operating point, **deduplicated**, grouped 5-fold CV over
+   all 156 recordings, 3 seeds: **AUC 0.971 +/- 0.004, ECE 0.010**,
+   `corr(score, padding)` 0.22.
 
-   The same config trained on the **`lstm` pool only** (the RL-safe scorer, 73
-   recordings) scores **AUC 0.875, ECE 0.065 after calibration, T = 1.775** on the
-   unseen `eval` pool. **Report both numbers** — the gap is pool size (125 recordings per
-   CV fold vs 59 after the validation split), and the RL work consumes the 0.875 model.
+   The same config trained on the **`lstm` pool only** (the RL-safe scorer, 59 training
+   recordings after the validation split) gives **AUC 0.864 +/- 0.018** across 3 seeds on
+   the unseen `eval` pool. The saved artefact is the seed closest to that mean:
+   **AUC 0.873, acc 0.822, ECE 0.092, T = 1.376**. Per-family recall: NaiveBot 1.000,
+   FallibleBot 0.887, human 0.846, HumanishBot 0.741, MimicBot 0.723.
+
+   **Report both numbers.** The gap is pool size (~125 recordings per CV fold vs 59), and
+   the RL work consumes the 0.86 model, not the 0.97 one.
+
+   `class_balance` is **pool-size dependent** and must not be copied across:
+
+   | pool | window-balanced | family-balanced |
+   |---|---|---|
+   | CV folds (~125 recordings) | 0.968 +/- 0.011 | **0.971 +/- 0.004** |
+   | `lstm` pool (59 recordings) | **0.864 +/- 0.018** | 0.780 +/- 0.091 |
+
+   Family balancing helps at CV scale and **collapses** on the small pool, where NaiveBot
+   contributes only 9 training windows and the weighting hands them the same mass as 379
+   human ones. Use `window` for the RL-safe scorer, `family` for CV-scale training, and
+   confirm at 5 seeds -- 3 cannot separate these.
 
    Artefact: `results/final_scorer/` (model.keras + scorer.json with standardiser and
    temperature). Load with `HumanityScorer.load("results/final_scorer")`.
@@ -316,9 +333,9 @@ all 156 sessions, **5 seeds** each, out-of-fold pooling.
 | **P0.1** | representation × padding — `{xy, xy_dt, dxdy, dxdy_dt, kinematic}` × `{repeat_point, repeat_row, mask, zero_mask}`, **at ctx 32** | **Partly answered (4.2b): `kinematic`+`mask` wins.** Re-run at 5 seeds with `xy`/`xy_dt` included, which 4.2b omitted. |
 | **P0.2** | architecture — `{(16,), (16,8), (32,), (32,16), (64,32), (200,100)+dense(128,64)}` × best 2 representations | Re-confirm capacity at the right operating point. Include the published architecture as the reference row. |
 | **P0.3** | lr `{3e-4, 1e-3, 3e-3}` × dropout `{0, 0.25}` × recurrent_dropout `{0, 0.2}` on the top 3 | Regularisation matters more when inputs are half padding. |
-| **P0.4** | class balancing — `window` (current) vs `family` (equalise the four bot generators) | NaiveBot has only **19 distinct chunks** against MimicBot's and FallibleBot's hundreds, so those two dominate the loss. (At chunk level NaiveBot is ~11% of *rows* but those rows are 19 distinct chunks replayed — dedup first, then judge.) |
+| **P0.4** | class balancing — `window` vs `family`, **separately at CV scale and on the `lstm` pool** | **Partly answered: the answer differs by pool size** (see §0). Family balancing gains +0.003 at CV scale and loses 0.084 on the 59-recording pool. Confirm at 5 seeds and find the crossover. Also worth testing: cap the family weight rather than fully equalising. |
 | **P0.5** | augmentation — `none`, `rigid ±1`, `per_move ±1/±2/±3`, `gaussian σ=1/2`, each ×4 copies | Redo at chunk level. On session windows `none` won; that may not hold once inputs are padded. |
-| **P0.6** | **padding shortcut audit** — report `corr(score, padding_fraction)` and AUC restricted to chunks with padding < 0.4 | If AUC collapses on low-padding chunks, the scorer is reading activity volume, not dynamics. Must be reported either way. |
+| **P0.6** | **activity-volume audit** — `corr(score, padding_fraction)`; AUC restricted to low-padding chunks; and the movement-count baseline below | A single feature, movement count per chunk, already gives **NaiveBot recall 1.000 at 5.9% human false-positive rate** (AUC 0.968 vs human). So for the low-activity families the LSTM is detecting *absence of motion*, not motion quality. Quantify how much of the scorer's performance a movement-count threshold reproduces on each family, and report it — it sharpens the claim rather than weakening it. |
 | **P0.7** | context length `{16, 32, 50, 64}` | **Largely answered — 32 chosen, see 4.2b.** Confirm at 5 seeds and probe below 32, since the trend had not clearly turned. |
 
 **Selection rule — fix it in writing before running, and do not change it afterwards:**

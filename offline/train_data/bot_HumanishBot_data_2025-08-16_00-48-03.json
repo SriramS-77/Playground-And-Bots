@@ -1,0 +1,297 @@
+{
+    "bot_info": {
+        "bot_id": 2,
+        "bot_name": "HumanishBot",
+        "session_timestamp": 1755285483717
+    },
+    "mouse_movements": [
+        {
+            "x": 470,
+            "y": 12,
+            "timestamp": 1755285485217
+        },
+        {
+            "x": 706,
+            "y": 19,
+            "timestamp": 1755285485234
+        },
+        {
+            "x": 941,
+            "y": 25,
+            "timestamp": 1755285485251
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285485267
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285485348
+        },
+        {
+            "x": 763,
+            "y": 172,
+            "timestamp": 1755285490434
+        },
+        {
+            "x": 556,
+            "y": 242,
+            "timestamp": 1755285490453
+        },
+        {
+            "x": 349,
+            "y": 313,
+            "timestamp": 1755285490467
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "timestamp": 1755285490487
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "timestamp": 1755285490553
+        },
+        {
+            "x": 527,
+            "y": 242,
+            "timestamp": 1755285495151
+        },
+        {
+            "x": 719,
+            "y": 172,
+            "timestamp": 1755285495167
+        },
+        {
+            "x": 911,
+            "y": 102,
+            "timestamp": 1755285495183
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "timestamp": 1755285495201
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "timestamp": 1755285495241
+        },
+        {
+            "x": 1133,
+            "y": 32,
+            "timestamp": 1755285495333
+        },
+        {
+            "x": 1147,
+            "y": 32,
+            "timestamp": 1755285495351
+        },
+        {
+            "x": 1162,
+            "y": 32,
+            "timestamp": 1755285495367
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285495384
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285495425
+        },
+        {
+            "x": 969,
+            "y": 115,
+            "timestamp": 1755285499434
+        },
+        {
+            "x": 763,
+            "y": 199,
+            "timestamp": 1755285499451
+        },
+        {
+            "x": 556,
+            "y": 283,
+            "timestamp": 1755285499468
+        },
+        {
+            "x": 349,
+            "y": 367,
+            "timestamp": 1755285499484
+        },
+        {
+            "x": 142,
+            "y": 451,
+            "timestamp": 1755285499501
+        },
+        {
+            "x": 142,
+            "y": 451,
+            "timestamp": 1755285499541
+        },
+        {
+            "x": 572,
+            "y": 458,
+            "timestamp": 1755285506618
+        },
+        {
+            "x": 786,
+            "y": 461,
+            "timestamp": 1755285506635
+        },
+        {
+            "x": 1001,
+            "y": 464,
+            "timestamp": 1755285506651
+        },
+        {
+            "x": 1216,
+            "y": 468,
+            "timestamp": 1755285506669
+        },
+        {
+            "x": 1216,
+            "y": 468,
+            "timestamp": 1755285506709
+        },
+        {
+            "x": 1193,
+            "y": 380,
+            "timestamp": 1755285512985
+        },
+        {
+            "x": 1171,
+            "y": 293,
+            "timestamp": 1755285513002
+        },
+        {
+            "x": 1148,
+            "y": 206,
+            "timestamp": 1755285513020
+        },
+        {
+            "x": 1126,
+            "y": 119,
+            "timestamp": 1755285513036
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "timestamp": 1755285513052
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "timestamp": 1755285513091
+        }
+    ],
+    "clicks": [
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1755285485298
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1755285490513
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Home",
+            "timestamp": 1755285495229
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1755285495412
+        },
+        {
+            "x": 142,
+            "y": 451,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1755285499528
+        },
+        {
+            "x": 1216,
+            "y": 468,
+            "target": "A",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700",
+            "text": "Next \u2192",
+            "timestamp": 1755285506696
+        },
+        {
+            "x": 1104,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Home",
+            "timestamp": 1755285513080
+        }
+    ],
+    "scrolls": [
+        {
+            "direction": "down",
+            "position": 364,
+            "timestamp": 1755285489007
+        },
+        {
+            "direction": "down",
+            "position": 2246,
+            "timestamp": 1755285490391
+        },
+        {
+            "direction": "up",
+            "position": 0,
+            "timestamp": 1755285490573
+        },
+        {
+            "direction": "down",
+            "position": 431,
+            "timestamp": 1755285497557
+        },
+        {
+            "direction": "down",
+            "position": 3634,
+            "timestamp": 1755285499409
+        },
+        {
+            "direction": "up",
+            "position": 0,
+            "timestamp": 1755285499557
+        }
+    ],
+    "keystrokes": [],
+    "timestamps": {
+        "start": 1755285483169,
+        "end": 1755285513099
+    },
+    "page_reloads": 0
+}

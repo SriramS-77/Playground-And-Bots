@@ -1,0 +1,282 @@
+{
+    "bot_info": {
+        "bot_id": 2,
+        "bot_name": "HumanishBot",
+        "session_timestamp": 1755285250691
+    },
+    "mouse_movements": [
+        {
+            "x": 235,
+            "y": 6,
+            "timestamp": 1755285251946
+        },
+        {
+            "x": 470,
+            "y": 12,
+            "timestamp": 1755285251962
+        },
+        {
+            "x": 706,
+            "y": 19,
+            "timestamp": 1755285251980
+        },
+        {
+            "x": 941,
+            "y": 25,
+            "timestamp": 1755285251996
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285252013
+        },
+        {
+            "x": 1176,
+            "y": 32,
+            "timestamp": 1755285252090
+        },
+        {
+            "x": 969,
+            "y": 102,
+            "timestamp": 1755285257216
+        },
+        {
+            "x": 763,
+            "y": 172,
+            "timestamp": 1755285257229
+        },
+        {
+            "x": 556,
+            "y": 242,
+            "timestamp": 1755285257247
+        },
+        {
+            "x": 349,
+            "y": 313,
+            "timestamp": 1755285257263
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "timestamp": 1755285257279
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "timestamp": 1755285257333
+        },
+        {
+            "x": 572,
+            "y": 426,
+            "timestamp": 1755285262780
+        },
+        {
+            "x": 786,
+            "y": 448,
+            "timestamp": 1755285262798
+        },
+        {
+            "x": 1001,
+            "y": 470,
+            "timestamp": 1755285262812
+        },
+        {
+            "x": 1216,
+            "y": 492,
+            "timestamp": 1755285262830
+        },
+        {
+            "x": 1216,
+            "y": 492,
+            "timestamp": 1755285262872
+        },
+        {
+            "x": 1216,
+            "y": 492,
+            "timestamp": 1755285268347
+        },
+        {
+            "x": 1216,
+            "y": 492,
+            "timestamp": 1755285268365
+        },
+        {
+            "x": 1216,
+            "y": 492,
+            "timestamp": 1755285268381
+        },
+        {
+            "x": 1216,
+            "y": 492,
+            "timestamp": 1755285268397
+        },
+        {
+            "x": 1216,
+            "y": 492,
+            "timestamp": 1755285268436
+        },
+        {
+            "x": 795,
+            "y": 482,
+            "timestamp": 1755285274981
+        },
+        {
+            "x": 585,
+            "y": 477,
+            "timestamp": 1755285274997
+        },
+        {
+            "x": 374,
+            "y": 472,
+            "timestamp": 1755285275013
+        },
+        {
+            "x": 164,
+            "y": 468,
+            "timestamp": 1755285275030
+        },
+        {
+            "x": 164,
+            "y": 468,
+            "timestamp": 1755285275070
+        },
+        {
+            "x": 600,
+            "y": 293,
+            "timestamp": 1755285275164
+        },
+        {
+            "x": 818,
+            "y": 206,
+            "timestamp": 1755285275181
+        },
+        {
+            "x": 1036,
+            "y": 119,
+            "timestamp": 1755285275197
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "timestamp": 1755285275214
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "timestamp": 1755285275273
+        },
+        {
+            "x": 812,
+            "y": 223,
+            "timestamp": 1755285283264
+        },
+        {
+            "x": 591,
+            "y": 318,
+            "timestamp": 1755285283280
+        },
+        {
+            "x": 370,
+            "y": 414,
+            "timestamp": 1755285283298
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "timestamp": 1755285283314
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "timestamp": 1755285283354
+        }
+    ],
+    "clicks": [
+        {
+            "x": 1176,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Blog",
+            "timestamp": 1755285252043
+        },
+        {
+            "x": 142,
+            "y": 383,
+            "target": "A",
+            "id": "",
+            "classes": "text-indigo-600 hover:underline font-semibold",
+            "text": "Read More \u2192",
+            "timestamp": 1755285257309
+        },
+        {
+            "x": 1216,
+            "y": 492,
+            "target": "A",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700",
+            "text": "Next \u2192",
+            "timestamp": 1755285262858
+        },
+        {
+            "x": 1216,
+            "y": 492,
+            "target": "A",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700",
+            "text": "Next \u2192",
+            "timestamp": 1755285268424
+        },
+        {
+            "x": 164,
+            "y": 468,
+            "target": "A",
+            "id": "",
+            "classes": "bg-gray-200 text-gray-800 px-4 py-2 rounded-md hover:bg-gray-300",
+            "text": "\u2190 Previous",
+            "timestamp": 1755285275057
+        },
+        {
+            "x": 1254,
+            "y": 32,
+            "target": "A",
+            "id": "",
+            "classes": "text-gray-600 hover:bg-indigo-500 hover:text-white px-3 py-2 rounded-md text-sm font-medium",
+            "text": "Contact",
+            "timestamp": 1755285275242
+        },
+        {
+            "x": 149,
+            "y": 510,
+            "target": "BUTTON",
+            "id": "",
+            "classes": "bg-indigo-600 text-white px-6 py-3 rounded-md hover:bg-indigo-700",
+            "text": "Send",
+            "timestamp": 1755285283341
+        }
+    ],
+    "scrolls": [
+        {
+            "direction": "down",
+            "position": 396,
+            "timestamp": 1755285255369
+        },
+        {
+            "direction": "down",
+            "position": 2870,
+            "timestamp": 1755285257185
+        },
+        {
+            "direction": "up",
+            "position": 0,
+            "timestamp": 1755285257342
+        }
+    ],
+    "keystrokes": [],
+    "timestamps": {
+        "start": 1755285250145,
+        "end": 1755285285749
+    },
+    "page_reloads": 0
+}

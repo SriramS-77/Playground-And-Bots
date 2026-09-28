@@ -215,7 +215,7 @@ playground/models/
 
 *.json
 
-!training/data/*.json
+# !training/**/*.json
 !offline/data/*.json
 !offline/train_data/*.json
 
@@ -229,6 +229,8 @@ logs*.txt
 *.xlsx
 *.csv
 *.keras
+
+!training/experiments/results/final_scorer/*
 
 captcha-generator/
 balabit_dataset/

@@ -13,9 +13,29 @@ them properly and, where noted, to settle questions the CPU budget could not.
 
 ## 0. Read this first
 
-1. **The scorer design is NOT frozen. Phase 0 is blocking.** A late check found the
-   scorer was selected at the wrong operating point and the representation ranking
-   inverts when measured correctly. Do not start RL work until Phase 0 closes.
+1. **The scorer design is decided. Phase 0 is now confirmation, not a blocker.**
+
+   ```
+   representation = kinematic      (dx, dy, dt, speed, accel)
+   padding        = mask           (repeat_row + a binary real/pad channel)
+   context        = 32             (NOT the inherited 100)
+   lstm_units     = (32,)  dense_units = (32,)  lr = 1e-3
+   -> 6,081 parameters
+   ```
+
+   Measured at the **chunk** operating point, deduplicated, grouped 5-fold CV over all
+   156 recordings, 2 seeds: **AUC 0.975 ± 0.001, ECE 0.010**, `corr(score, padding)` 0.22.
+
+   The same config trained on the **`lstm` pool only** (the RL-safe scorer, 73
+   recordings) scores **AUC 0.875, ECE 0.065 after calibration, T = 1.775** on the
+   unseen `eval` pool. **Report both numbers** — the gap is pool size (125 recordings per
+   CV fold vs 59 after the validation split), and the RL work consumes the 0.875 model.
+
+   Artefact: `results/final_scorer/` (model.keras + scorer.json with standardiser and
+   temperature). Load with `HumanityScorer.load("results/final_scorer")`.
+
+   Phase 0 should still run to add seeds and settle the refinements (§4.3), but the RL
+   work can start now.
 2. **The GPU will not speed up the bottleneck.** The simulation is a single-threaded
    Python loop and the networks are ~5k parameters. Throughput comes from running
    **one process per (config, seed)** with `OMP_NUM_THREADS=1`, not from bigger batches.
@@ -249,23 +269,61 @@ Guarantees already implemented and asserted:
   refit gave T ≈ 1.571 for `kinematic`+`mask`.
 * `class_balance="family"` equalises the four bot generators, not just human-vs-bot.
 
+### 4.2b What the context length did — the dominant effect
+
+Sweeping `{dxdy, kinematic} × {repeat_point, mask} × context {100, 50, 32}` at the chunk
+operating point, deduplicated, 5-fold CV, 2 seeds:
+
+| representation | padding | ctx | AUC | ECE | corr(score, pad) | mean padding |
+|---|---|---|---|---|---|---|
+| **kinematic** | **mask** | **32** | **0.975 ± 0.001** | **0.010** | 0.222 | 0.09 |
+| kinematic | mask | 50 | 0.976 ± 0.006 | 0.014 | 0.239 | 0.19 |
+| kinematic | repeat_point | 50 | 0.964 | 0.028 | 0.280 | 0.19 |
+| dxdy | mask | 32 | 0.955 | 0.018 | 0.187 | 0.09 |
+| kinematic | repeat_point | 100 | 0.937 | 0.034 | 0.295 | 0.44 |
+| kinematic | mask | 100 | 0.890 ± 0.018 | 0.032 | 0.411 | 0.44 |
+| dxdy | mask | 100 | 0.750 ± 0.078 | 0.066 | 0.363 | 0.44 |
+
+Three things fall out:
+
+* **Context length dominated everything.** Going 100 → 32 moves `kinematic`+`mask` from
+  0.890 to 0.975 and `dxdy`+`mask` from 0.750 to 0.955. The inherited 100-point window
+  was the actual problem; the representation debate was largely an artifact of it.
+  Mean padding falls 0.44 → 0.09.
+* **`kinematic` beats `dxdy` at every context and padding combination.** The earlier
+  session-level ranking, which put `dxdy` top, does not survive the operating point.
+* **`mask` beats `repeat_point` once padding is low** (0.975 vs 0.961 at ctx 32) but is
+  *worse* at ctx 100 (0.890 vs 0.937). A mask channel helps when there is a little
+  padding to mark and cannot rescue a window that is 44% padding.
+
+The padding shortcut is reduced but not eliminated: `corr(score, padding)` falls from
+0.41 to 0.22. P0.6 still matters.
+
+Selection applied the pre-declared rule: ctx 50 and 32 are within 1 SE on AUC
+(0.976 vs 0.975, 1 SE ≈ 0.004), so the tie broke on ECE (0.010 vs 0.014), then on
+`corr_pad` (0.222 vs 0.239). Both are defensible; the difference is at noise level.
+
 ### 4.3 Phase 0 experiments
+
+**Status: P0.1 and P0.7 are substantially answered above at 2 seeds.** Re-run them at 5
+seeds to confirm, and treat the rest as refinement worth ±0.02 AUC.
 
 All at the **chunk operating point**, grouped 5-fold cross-validation by recording over
 all 156 sessions, **5 seeds** each, out-of-fold pooling.
 
 | id | sweep | why |
 |---|---|---|
-| **P0.1** | representation × padding — `{xy, xy_dt, dxdy, dxdy_dt, kinematic}` × `{repeat_point, repeat_row, mask, zero_mask}` | **The decisive cell.** Does correct padding rescue the difference representations? `repeat_row` is what produced §4.1's table; `repeat_point` matches the published pipeline. Both must be present or the table will not reproduce. |
+| **P0.1** | representation × padding — `{xy, xy_dt, dxdy, dxdy_dt, kinematic}` × `{repeat_point, repeat_row, mask, zero_mask}`, **at ctx 32** | **Partly answered (4.2b): `kinematic`+`mask` wins.** Re-run at 5 seeds with `xy`/`xy_dt` included, which 4.2b omitted. |
 | **P0.2** | architecture — `{(16,), (16,8), (32,), (32,16), (64,32), (200,100)+dense(128,64)}` × best 2 representations | Re-confirm capacity at the right operating point. Include the published architecture as the reference row. |
 | **P0.3** | lr `{3e-4, 1e-3, 3e-3}` × dropout `{0, 0.25}` × recurrent_dropout `{0, 0.2}` on the top 3 | Regularisation matters more when inputs are half padding. |
 | **P0.4** | class balancing — `window` (current) vs `family` (equalise the four bot generators) | NaiveBot has only **19 distinct chunks** against MimicBot's and FallibleBot's hundreds, so those two dominate the loss. (At chunk level NaiveBot is ~11% of *rows* but those rows are 19 distinct chunks replayed — dedup first, then judge.) |
 | **P0.5** | augmentation — `none`, `rigid ±1`, `per_move ±1/±2/±3`, `gaussian σ=1/2`, each ×4 copies | Redo at chunk level. On session windows `none` won; that may not hold once inputs are padded. |
 | **P0.6** | **padding shortcut audit** — report `corr(score, padding_fraction)` and AUC restricted to chunks with padding < 0.4 | If AUC collapses on low-padding chunks, the scorer is reading activity volume, not dynamics. Must be reported either way. |
-| **P0.7** | context length `{50, 100, 200}` | 100 was inherited, never justified. A 10 s chunk has ~65 human movements; 50 may fit better and halve the padding. |
+| **P0.7** | context length `{16, 32, 50, 64}` | **Largely answered — 32 chosen, see 4.2b.** Confirm at 5 seeds and probe below 32, since the trend had not clearly turned. |
 
 **Selection rule — fix it in writing before running, and do not change it afterwards:**
 
+0. All metrics at the **chunk** operating point, on **deduplicated** chunks.
 1. Primary: **chunk-level AUC**, mean over 5 seeds.
 2. Among configs within 1 SE of the best: lowest **chunk-level ECE after temperature
    scaling**.

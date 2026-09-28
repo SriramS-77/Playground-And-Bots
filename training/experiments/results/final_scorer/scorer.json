@@ -1,0 +1,44 @@
+{
+  "config": {
+    "representation": "kinematic",
+    "padding": "mask",
+    "lstm_units": [
+      32
+    ],
+    "dense_units": [
+      32
+    ],
+    "dropout": 0.0,
+    "recurrent_dropout": 0.0,
+    "lr": 0.001,
+    "batch_size": 64,
+    "context": 32,
+    "epochs": 120,
+    "patience": 15,
+    "class_balance": "window",
+    "augmentation": "none",
+    "n_copies": 1,
+    "magnitude": 1,
+    "sigma": 2.0
+  },
+  "temperature": 1.3762647941923185,
+  "standardiser": {
+    "mean": [
+      -3.792820692062378,
+      0.09976311773061752,
+      109.95731353759766,
+      96.73326873779297,
+      -4.293651580810547,
+      0.7775601148605347
+    ],
+    "std": [
+      124.56521606445312,
+      58.396968841552734,
+      486.4747619628906,
+      172.84475708007812,
+      82.89679718017578,
+      0.4159131944179535
+    ]
+  },
+  "params": 6081
+}

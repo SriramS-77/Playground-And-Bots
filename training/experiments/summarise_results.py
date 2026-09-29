@@ -18,6 +18,20 @@ R = HERE / "results"
 OUT = HERE / "FINDINGS.md"
 
 
+def scored(df):
+    """Drop the zero-bot cell before any headline mean.
+
+    With no bots S_B is undefined and DI = 100 for every policy that lets everyone
+    through, so averaging that cell in rewards permissiveness. It is what turned a proxy
+    agent that challenges NOBODY into "recovers 81% of the oracle" when the honest figure
+    is 65%. Report the all-six average only where continuity with the published Table 4
+    requires it, and label it.
+    """
+    if df is None or "bots" not in getattr(df, "columns", []):
+        return df
+    return df[df.bots > 0]
+
+
 def _read(name, **kw):
     p = R / name
     return pd.read_csv(p, **kw) if p.exists() else None
@@ -196,7 +210,7 @@ def main() -> str:
         body += ("Published policies as the world becomes stochastic (average DI):\n\n"
                  + md(alpha.groupby(["alpha", "policy"]).DI.mean().unstack().round(1)) + "\n\n")
     if sto is not None:
-        g = sto[sto.environment == "grounded"].groupby("policy")[
+        g = scored(sto[sto.environment == "grounded"]).groupby("policy")[
             ["DI", "false_positive_rate", "mean_friction_s"]].mean().round(3)
         body += ("Retrained inside the probabilistic environment:\n\n" + md(g) + "\n\n"
                  "False-positive rate is a quantity the deterministic simulator could "
@@ -217,9 +231,15 @@ def main() -> str:
     if amb is not None:
         body += md(amb.round(3), index=False) + "\n\n"
     if comp07 is not None:
-        g = comp07.groupby("policy")[["DI", "BOS", "SI_F1", "false_positive_rate"]]\
+        # Zero-bot cells are EXCLUDED. With no bots, S_B is undefined and DI = 100 for
+        # any policy that lets everyone through, so including them rewards permissiveness
+        # -- it is what made a proxy agent that challenges nobody look like it recovered
+        # 81% of the oracle when the honest figure is 65%. nb_07's own log said
+        # "inflated, do not quote"; this function quoted it anyway.
+        g = scored(comp07).groupby("policy")[["DI", "BOS", "SI_F1", "false_positive_rate"]]\
                   .mean().round(3)
-        body += md(g) + "\n\n"
+        body += md(g) + "\n\n*Zero-bot cells excluded throughout (see §7 of the "\
+                        "round-2 handoff).*\n\n"
         try:
             o = g.loc["DQN (oracle reward)", "DI"]
             p = g.loc["DQN (proxy reward)", "DI"]
@@ -229,7 +249,7 @@ def main() -> str:
         except KeyError:
             pass
     if lab is not None:
-        lb = lab[lab.bots > 0] if "bots" in lab else lab
+        lb = scored(lab)
         body += ("**Label coverage is not the binding constraint.** Raising the share of "
                  "abusive sessions that get confirmed from 2% to 100% barely moves the "
                  "agent:\n\n"
@@ -241,7 +261,7 @@ def main() -> str:
     if pen is not None:
         body += ("**Neither is the penalty weight.** Holding coverage at 0.3 and sweeping "
                  "the abuse penalty (the arithmetic break-even is around 260):\n\n"
-                 + md(pen.groupby("abuse_penalty")[
+                 + md(scored(pen).groupby("abuse_penalty")[
                      ["DI", "humans_left", "bots_left", "friction_s"]].mean().round(2))
                  + "\n\nOnly at -2400 does the agent defend at all, and it still leaks "
                    "~9x what the oracle-trained agent does. At -9600 it reverts to doing "

@@ -1,0 +1,3 @@
+# Shell scripts must stay LF: a CRLF shebang makes sbatch/bash fail with
+# "bad interpreter" on the cluster, even though the file looks fine on Windows.
+*.sh text eol=lf

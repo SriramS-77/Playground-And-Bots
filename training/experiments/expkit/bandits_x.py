@@ -105,6 +105,13 @@ _EPS = 1e-6
 
 POSTERIORS = ("gaussian", "gaussian_full", "mog2", "mog3")
 
+# These policies run on CPU by default, deliberately. The networks are tiny (<=256 wide,
+# 64-dim embedding) and `select_action` is single-sample inference once per user per step,
+# where host/device transfer dominates any kernel saving -- a GPU makes it SLOWER. It also
+# removes a class of device-mismatch bugs. Parallelism across seeds and configs is what
+# makes this search affordable, not the device. Pass `device=` to override.
+DEFAULT_DEVICE = "cpu"
+
 
 def posterior_spec(name: str) -> tuple[int, str]:
     """`name` -> (n_components, covariance)."""
@@ -175,7 +182,25 @@ class MixturePosterior:
 
     def __init__(self, dim: int, n_components: int = 1, alpha: float = 1.0,
                  covariance: str = "diag", warmup: int = 64, hard: bool = False,
-                 device=None):
+                 device=None, gate_scale: float | None = None):
+        """`gate_scale` tempers the context term of the gate. Default `1/dim`.
+
+        Without it the mixture is degenerate by construction in a 64-dim embedding. The
+        gate multiplies a diagonal-Gaussian density over all `dim` coordinates, so the
+        log-likelihood GAP between components scales with `dim` and the softmax saturates:
+        measured gate entropy on embedding-like data was **0.0022 against a maximum of
+        0.693** at K=2, i.e. a hard one-hot assignment that flips discontinuously with
+        small changes in `z`. Combined with each component seeing only ~1/K of the data --
+        so `A_k` is smaller, `A_k^-1` larger and the Thompson draw noisier (sampled-score
+        sd rose 3.07 -> 4.71 -> 5.69 for K = 1, 2, 3) -- the policy degenerates toward
+        random actions. On a real 4-episode task that showed up as mog2/mog3 scoring
+        DI -0.5/-0.9 against Gaussian's 26.2, which is the random-action regime.
+
+        Scaling the context log-likelihood by `1/dim` makes it a per-coordinate geometric
+        mean, so the gate stays soft and comparable to the reward term regardless of
+        embedding width. This is ordinary likelihood tempering, and `gate_scale` is a
+        declared sweep axis rather than a hidden constant.
+        """
         if covariance not in ("diag", "full"):
             raise ValueError("covariance must be 'diag' or 'full'")
         self.d = dim
@@ -185,6 +210,7 @@ class MixturePosterior:
         self.warmup = warmup
         self.hard = hard
         self.device = device or torch.device("cpu")
+        self.gate_scale = (1.0 / dim) if gate_scale is None else float(gate_scale)
 
         z = lambda *s: torch.zeros(*s, device=self.device)                # noqa: E731
         self.A = [torch.eye(dim, device=self.device) for _ in range(self.K)]
@@ -234,7 +260,7 @@ class MixturePosterior:
         for k in range(self.K):
             var = torch.clamp(self.v[k], min=_EPS)
             ll = -0.5 * (((z - self.m[k]) ** 2) / var + torch.log(2 * math.pi * var)).sum()
-            logp[k] = math.log(max(self.n[k], _EPS) / total) + ll
+            logp[k] = math.log(max(self.n[k], _EPS) / total) + self.gate_scale * ll
         return torch.softmax(logp, dim=0)
 
     # -- sampling ----------------------------------------------------------- #
@@ -346,6 +372,7 @@ class MixturePosterior:
         for k in range(self.K):
             var = torch.clamp(self.v[k], min=_EPS)
             gz = -0.5 * (((z - self.m[k]) ** 2) / var + torch.log(2 * math.pi * var)).sum()
+            gz = self.gate_scale * gz
             theta = self._theta_stale(k)
             resid = float(r - z @ theta) if theta is not None else float(r)
             gr = -0.5 * (resid * resid / self.s2[k] + math.log(2 * math.pi * self.s2[k]))
@@ -384,8 +411,17 @@ class MixturePosterior:
         recursion accumulates (a sum does not care about order), so the published
         equivalence is untouched.
         """
-        Z = torch.as_tensor(np.asarray(Z, dtype=np.float32), device=self.device)
-        R = torch.as_tensor(np.asarray(R, dtype=np.float32), device=self.device)
+        # `Z` arrives as a list of embedding tensors from `recompute_statistics`.
+        # `np.asarray` on a list of CUDA tensors raises TypeError, so stack instead --
+        # this would take down every bandit task the moment a GPU is available.
+        if isinstance(Z, (list, tuple)):
+            Z = torch.stack([torch.as_tensor(z, dtype=torch.float32).to(self.device)
+                             for z in Z]) if len(Z) else torch.empty(0, self.d,
+                                                                     device=self.device)
+        else:
+            Z = torch.as_tensor(np.asarray(Z, dtype=np.float32), device=self.device)
+        R = torch.as_tensor(np.asarray([float(r) for r in R], dtype=np.float32),
+                            device=self.device)
         n = int(R.numel())
         if n == 0:
             return self
@@ -437,8 +473,8 @@ class MixturePosterior:
             total = sum(self.n) or 1.0
             for k in range(self.K):
                 var = torch.clamp(self.v[k], min=_EPS)
-                gz = -0.5 * (((Z - self.m[k]) ** 2) / var
-                             + torch.log(2 * math.pi * var)).sum(1)
+                gz = self.gate_scale * (-0.5 * (((Z - self.m[k]) ** 2) / var
+                                                + torch.log(2 * math.pi * var)).sum(1))
                 resid = R - Z @ self._theta[k]
                 gr = -0.5 * (resid ** 2 / self.s2[k] + math.log(2 * math.pi * self.s2[k]))
                 logp[:, k] = math.log(max(self.n[k], _EPS) / total) + gz + gr
@@ -471,7 +507,7 @@ class _NeuralBanditX:
         self.n_arms = n_arms
         self.name = name or f"{self.base_name} ({arch.name})"
         torch.manual_seed(seed)
-        self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
+        self.device = torch.device(device or DEFAULT_DEVICE)
         self.net = FeatureNetX(5, arch.hidden, arch.embed_dim).to(self.device)
         self.optimizer = optim.Adam(self.net.parameters(), lr=arch.lr)
         self.posteriors = [self._new_posterior() for _ in range(n_arms)]

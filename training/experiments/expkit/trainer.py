@@ -216,11 +216,16 @@ def train_dqn(
     seed: int = 0,
     name: str | None = None,
     verbose: int = 20,
+    hidden: tuple[int, ...] = PUBLISHED_HIDDEN,
+    device: str | None = "cpu",
 ) -> tuple[TrainableDQN, TrainLog]:
     """Train one agent. Returns (agent, log)."""
     proxy_cfg = proxy_cfg or ProxyRewardConfig()
     name = name or f"DQN-{reward_source}{'' if use_score else '-noscore'}"
-    agent = TrainableDQN(name=name, use_score=use_score, seed=seed)
+    # CPU by default: a 128-64-32-11 MLP with single-sample per-step inference is
+    # slower on GPU than on CPU once transfers are counted. See bandits_x.DEFAULT_DEVICE.
+    agent = TrainableDQN(name=name, use_score=use_score, seed=seed,
+                         hidden=hidden, device=device)
     rng = random.Random(seed + 1)
     log = TrainLog()
     global_step = 0

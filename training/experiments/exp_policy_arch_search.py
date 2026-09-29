@@ -62,12 +62,14 @@ import pandas as pd
 import torch
 
 import expkit  # noqa: F401  -- puts `training/` on sys.path, so import it first
+import preflight
 from rlcaptcha.scoring import ScoreCache
 from expkit.bandits_x import (POSTERIORS, BanditArch, FeatureNetX, LinUCBX,
                               MixturePosterior, ThompsonX, fit_posteriors_from,
                               train_bandit)
 from expkit.humanity_scorer import HumanityScorer, ScorerConfig
-from expkit.partition import index_sessions, make_rotation, save_rotation
+from expkit.partition import (index_sessions, load_rotation, make_rotation,
+                              save_rotation)
 from expkit.paths import RESULTS
 from expkit.simx import evaluate_x, run_x, sessions_from_refs
 from expkit.stochastic import DETERMINISTIC, PAPER_EQUIVALENT
@@ -199,7 +201,27 @@ def smoke_tests(verbose: bool = True):
     dqn = TrainableDQN(seed=0)
     for attr in ("acts_when_exhausted", "updates_last_threat", "initial_last_threat"):
         assert getattr(LinUCBX(seed=0), attr) == getattr(dqn, attr)
-    ok("LinUCBX / ThompsonX are aligned with TrainableDQN on all four policy flags")
+
+    # ...and the fifth axis, which the README's list of four omits: the published bandits
+    # normalise the state differently from the DQN (tanh(n/200) vs n/300, tanh(x/10) vs
+    # tanh(x/5), tanh-scaled vs raw last threat level). Assert the new classes use the
+    # DQN's encoding, and that the published one really did differ -- otherwise this
+    # claim in the handoff is unverified.
+    class _U:
+        bot_score, avg_bot_score, captchas_solved, last_threat_level = 0.4, 0.4, 7, 3
+    u, n_active = _U(), 400
+    assert np.allclose(LinUCBX(seed=0).features(u, n_active), dqn.features(u, n_active))
+    assert np.allclose(ThompsonX(seed=0).features(u, n_active), dqn.features(u, n_active))
+    try:
+        from rlcaptcha.policies.bandits import LinUCBPolicy
+        published = LinUCBPolicy().context(u, n_active).cpu().numpy()
+    except (ImportError, FileNotFoundError, RuntimeError):
+        published = None      # checkpoints absent; skip -- never swallow the assert below
+    if published is not None:
+        assert not np.allclose(published, dqn.features(u, n_active)), \
+            "published bandit context now matches the DQN -- the 5th mismatch claim is stale"
+    ok("LinUCBX / ThompsonX aligned with TrainableDQN on all 5 axes "
+       "(4 policy flags + state encoding)")
 
     # 6. The rotation is disjoint and evaluates each recording exactly once.
     folds = make_rotation(index_sessions())
@@ -304,7 +326,10 @@ def fold_scorer_cached(fold, seed: int = 0) -> HumanityScorer:
     d = OUT / f"fold{fold.index}_scorer"
     if (d / "model.keras").exists():
         return HumanityScorer.load(d)
+    from expkit.partition import split_refs
+    train_refs, val_refs = split_refs(fold.scorer, 0.25, seed=seed)
     scorer = fold_scorer(fold, seed=seed)
+    preflight.check_scorer(scorer, fold, train_refs, val_refs)
     scorer.save(d)
     return scorer
 
@@ -336,7 +361,11 @@ def run_task(task: dict, folds, episodes: int, eval_seeds: int) -> pd.DataFrame:
     if task["family"] == "dqn":
         hidden = tuple(int(x) for x in task["spec"].split("-"))
         agent, _ = train_dqn(fit_h, fit_b, cache, episodes=episodes, seed=seed,
-                             bot_choices=BOT_VOLUMES, verbose=0, name=f"DQN {hidden}")
+                             bot_choices=BOT_VOLUMES, verbose=0, hidden=hidden,
+                             name=f"DQN {hidden}")
+        # Before `train_dqn` took `hidden`, run_task computed it and dropped it on the
+        # floor -- every DQN candidate trained the default 128-64-32. Assert, don't hope.
+        assert agent.hidden == hidden, "the architecture sweep must actually vary depth"
         variants = {f"dqn:{task['spec']}": agent.eval_mode()}
         params = {k: n_params(agent.policy_net) for k in variants}
     else:
@@ -377,12 +406,19 @@ def collect() -> dict:
     runs = pd.concat([pd.read_csv(f) for f in files], ignore_index=True)
     runs.to_csv(OUT / "policy_arch_runs.csv", index=False)
 
+    # One winner PER FAMILY. Merging LinUCB and Thompson into a single "bandit" group
+    # would return one or the other, and the six-policy headline table needs both.
+    families = ("dqn", "linucb", "thompson")
+    expected = len(task_list(int(runs.train_seed.nunique())))
+    if len(files) != expected:
+        print(f"WARNING: {len(files)} task CSVs but the grid expects {expected}. "
+              "Array tasks failed; selection would run on an incomplete grid.")
+
     chosen: dict = {}
     for fold in sorted(runs.fold.unique()):
         chosen[int(fold)] = {}
-        for group, mask in (("dqn", runs.family == "dqn"),
-                            ("bandit", runs.family != "dqn")):
-            sub = runs[mask & (runs.fold == fold)]
+        for group in families:
+            sub = runs[(runs.family == group) & (runs.fold == fold)]
             if sub.empty:
                 continue
             params = sub.groupby("candidate")["params"].first().to_dict()
@@ -393,7 +429,7 @@ def collect() -> dict:
             print(f"\nfold {fold} [{group}] -> {pick}")
             print(table.round(3).to_string(index=False))
 
-    agree = {g: {f[g] for f in chosen.values() if g in f} for g in ("dqn", "bandit")}
+    agree = {g: {f[g] for f in chosen.values() if g in f} for g in families}
     payload = {"rule": "best mean DI (bots>0), SE over training seeds; "
                        "within 1 SE, fewest parameters",
                "selected_on": "rl_val", "by_fold": chosen,
@@ -423,9 +459,16 @@ def main():
         collect()
         return
 
+    preflight.check(hardware=not args.list)
     print("smoke tests")
     folds = smoke_tests()
-    save_rotation(folds, OUT / "rotation.json")
+    # `results/rotation.json` is committed, so the three folds are fixed and identical
+    # on every machine. Load it; only write one if it is genuinely absent.
+    rot = OUT / "rotation.json"
+    if rot.exists():
+        folds = load_rotation(rot)
+    else:
+        save_rotation(folds, rot)
 
     if args.smoke:
         args.seeds, args.episodes, args.eval_seeds = 1, 4, 2
@@ -442,10 +485,19 @@ def main():
     if args.prepare:
         for fold in folds:
             t = time.time()
-            fold_scorer_cached(fold)
-            print(f"  fold {fold.index} scorer ready [{time.time() - t:.0f}s]")
+            scorer = fold_scorer_cached(fold)
+            # The RL loop only ever calls score_chunks. If it disagrees with score_chunk,
+            # every cached score is wrong and nothing downstream would reveal it.
+            h, b = sessions_from_refs(fold.rl_val)
+            chunks = [c for s in (h + b) for c in s.chunks][:64]
+            preflight.check_batched_scoring(scorer, chunks)
+            print(f"  fold {fold.index} scorer ready, batched==per-chunk "
+                  f"[{time.time() - t:.0f}s]")
         return
 
+    if not args.smoke:
+        preflight.check_budget(n_train_seeds=args.seeds, n_episodes=args.episodes,
+                               n_eval_seeds=args.eval_seeds)
     todo = [tasks[args.task]] if args.task is not None else tasks
     t0 = time.time()
     for i, task in enumerate(todo):

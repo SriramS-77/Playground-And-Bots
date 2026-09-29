@@ -5,6 +5,23 @@ unchanged. This one records what round 1 (Slurm job 1263, 2026-09-28, 1095 min) 
 executed, the defects it exposed, the design changes since, and the exact queue for
 round 2.
 
+**Where the two documents disagree, this one wins.** Specifically:
+
+| `HANDOFF_GPU_EXPERIMENTS.md` says | superseded by |
+|---|---|
+| §3 — one fixed `partition.json` (73/31/52) | §3.1 — a 3-fold **rotation**; 31 RL recordings is what starved the agent |
+| §4.2 — load `results/final_scorer/` | §3.2 — carry the **config**, refit weights and `T` **per fold** |
+| §4.3 — Phase 0 cross-validated over all 156 | §6 Priority 0 — per fold on `scorer ∪ rl`; the eval block never picks the config |
+| §4.4 — scorer trained on the `lstm` pool | §3.2 — on **this fold's** scorer block |
+| §7 — `preflight` shown as illustrative asserts | §4 — `preflight.py`, real and importable |
+| §9 — leave-one-campaign-out ≈ an unseen participant | §3.1 — **same three participants**; it is a temporal holdout, nothing more |
+| E9 as a separate experiment | §6 Priority 1 — subsumed; the bandits are retrained by construction |
+| E1's four environment mismatches | §2 — there are **five**; the state encoding also differs |
+
+Everything else in that document — the reviewer mapping, the metric definitions, the
+standing rules, the seed and budget floors, the limitations to state rather than fix —
+still holds.
+
 **New code shipped with this document** (all under `training/experiments/`, nothing in
 `rlcaptcha/` was touched):
 
@@ -13,11 +30,20 @@ round 2.
 | `expkit/partition.py` | `stratify_by="family"`, `EQUAL_THIRDS`, `split_refs`, **`make_rotation`** (3-fold role rotation), `save/load_rotation` |
 | `expkit/bandits_x.py` | **`LinUCBX`, `ThompsonX`** — trainable bandits aligned with the DQN on all five axes; `BanditArch`; **`MixturePosterior`** (MoG Thompson Sampling); `train_bandit`; `fit_posteriors_from`; `recompute_statistics` (the R1.6 fix) |
 | `expkit/trainer.py` | `QNet(hidden=...)` and `TrainableDQN(hidden=..., lr=...)` for the depth/width search |
-| `exp_policy_arch_search.py` | the search driver, the selection rule, and seven smoke tests |
+| `expkit/simx.py` | `verify_against_published()` — the 144/144 assertion, lifted out of `nb_06` so it can run in preflight |
+| **`exp_scorer_phase0.py`** | **Phase 0 runner** — per fold, chunk operating point, 5 seeds, the fixed selection rule, the P0.6 audit |
+| **`exp_policy_arch_search.py`** | the policy + posterior search, its selection rule, and eight smoke tests |
+| **`preflight.py`** | the gates, importable: `import preflight; preflight.check()` |
+| **`slurm/`** | `phase0.sh`, `prepare_scorers.sh`, `arch_search.sh` + a README with the run order and the measured budget |
+| `summarise_results.py` | **fixed**: the zero-bot cell no longer leaks into headline means (see §1.1) |
 
 All defaults reproduce round-1 behaviour exactly — verified: `make_partition()` with no
 arguments still yields the identical 73/31/52 split, and the default `QNet` still loads
 the published DQN checkpoint.
+
+**Start here:** `slurm/README.md` has the run order end to end. The three `--smoke` modes
+(`preflight.py`, `exp_scorer_phase0.py --smoke`, `exp_policy_arch_search.py --smoke`) take
+minutes and validate the whole chain before anything expensive launches.
 
 ---
 
@@ -51,21 +77,27 @@ Genuinely more comprehensive than the prior local run, and worth keeping:
 
 ## 1. Defects to fix **before** running anything
 
-### 1.1 `summarise_results.py` — zero-bot cell leaks into the proxy headline
+### 1.1 `summarise_results.py` — zero-bot cell leaked into headline means — **FIXED**
 
-`summarise_results.py:220` groups `proxy_vs_oracle_runs.csv` by policy and takes an
-unfiltered mean, so the zero-bot cell is included. It printed **81 %** into `FINDINGS.md`
-§7 and into `README.md` claim 5. `nb_07`'s own log says:
+It grouped `proxy_vs_oracle_runs.csv` by policy and took an unfiltered mean, so the
+zero-bot cell was included. That printed **81 %** into `FINDINGS.md` §7 and `README.md`
+claim 5, while `nb_07`'s own log said:
 
 ```
 including the zero-bot cell : proxy / oracle = 81%  <- inflated, do not quote
 excluding it                : proxy / oracle = 65%  (35.7 vs 55.1)
 ```
 
-Fix: filter `comp07 = comp07[comp07.bots > 0]` before the groupby, and apply the same
-filter to **every** headline mean in that script. Standing rule 2 of the handoff exists
-precisely because DI is undefined at zero bots and rewards a policy that challenges
-nobody.
+**Already fixed in this push.** A shared `scored(df)` helper now drops `bots == 0`, and it
+is applied to the proxy table, the stochastic-environment table, the label-coverage sweep
+and the abuse-penalty sweep. Use `scored()` (or `preflight.headline()`) for every new
+headline mean you add. DI is undefined at zero bots and equals 100 for any policy that
+lets everyone through, so averaging that cell in rewards permissiveness — it is what made
+a proxy agent that challenges *nobody* look like it beat the oracle.
+
+Re-running `python summarise_results.py` on the round-1 CSVs will now print 65 %, not
+81 %. **`README.md` claim 5 and `FINDINGS.md` §7 still carry the old number** until it is
+regenerated.
 
 ### 1.2 `nb_05` — the population ablation is over-claimed
 
@@ -154,6 +186,10 @@ Three facts fall out:
    | population | `tanh(n / 200)` | `n / 300`, unbounded |
    | captchas solved | `tanh(x / 10)` | `tanh(x / 5)` |
    | last threat level | tanh-scaled | raw |
+
+   A smoke test asserts both halves of this: that `LinUCBX`/`ThompsonX` produce the DQN's
+   state vector exactly, **and** that the published class still produces a different one —
+   so if someone later "fixes" `rlcaptcha`, the claim fails loudly instead of going stale.
 
 Plus one that hurts every learned policy equally and may explain the 1000-bot cell:
 `train_dqn` samples bot volumes up to **500**, but evaluation goes to **1000**. At 1000
@@ -263,8 +299,62 @@ buffer**, so the posterior is the only variable and the three extra variants cos
 nothing.
 
 **Asserted in `smoke_tests`, and passing:** at K=1 the mixture reproduces the published
-Gaussian Thompson draw **bit-exactly** under the same seed (`|Δ| < 1e-9`), and the gate is
-verifiably context-dependent at K=2.
+Gaussian Thompson draw **bit-exactly** under the same seed (`|Δ| < 1e-9`); the gate is
+verifiably context-dependent at K=2; and batch EM fits a two-regime reward (K=1 MSE 13.8 →
+K=2 0.08).
+
+#### The gate has to be tempered, or the mixture is degenerate by construction
+
+Found while testing, and it would have wrecked this arm of the search. The gate multiplies
+a diagonal-Gaussian density over all 64 embedding coordinates, so the log-likelihood
+**gap** between components scales with the embedding width and the softmax saturates.
+Measured on embedding-like data:
+
+| | gate entropy (max) | sampled-score sd |
+|---|---|---|
+| K=1 | — | 3.07 |
+| K=2, untempered | **0.0022** (0.693) | 4.71 |
+| K=3, untempered | **0.0073** (1.099) | 5.69 |
+| K=2, tempered `1/d` | **0.6702** (0.693) | 2.56 |
+| K=3, tempered `1/d` | **1.0700** (1.099) | 3.03 |
+
+Untempered, the "soft" gate is a hard one-hot assignment that flips discontinuously with
+small changes in `z`. Combine that with each component seeing only ~1/K of the data — so
+`A_k` is smaller, `A_k⁻¹` larger, the Thompson draw noisier — and the policy degenerates
+toward random actions. On a real 4-episode task that showed up as **mog2 DI −0.5 and mog3
+−0.9 against Gaussian's 26.2**, which is squarely the random-action regime (§3.7 measures
+random at −3.5).
+
+`MixturePosterior` therefore scales the context log-likelihood by `gate_scale`, default
+`1/dim` — a per-coordinate geometric mean, so the gate stays soft and comparable to the
+reward term whatever the embedding width. Ordinary likelihood tempering, and a **declared
+sweep axis** rather than a hidden constant: if you have budget, sweep
+`gate_scale ∈ {1/d, 2/d, 4/d}` and report it.
+
+Re-running that same 4-episode Thompson task with the gate tempered:
+
+| posterior | untempered | tempered `1/d` |
+|---|---|---|
+| `gaussian` | 26.2 | 26.2 |
+| `gaussian_full` | 28.0 | 28.0 |
+| `mog2` | **−0.5** | **38.2** |
+| `mog3` | **−0.9** | **41.7** |
+
+The K=1 rows are identical, as they must be — at K=1 the gate is identically 1, so
+`gate_scale` cannot touch them. That is the control: the change moves only the mixtures,
+and it moves them from *below random* to *well above the published Gaussian*.
+
+**Read this as a caution and a signal, not a result.** Four episodes, one seed, two
+evaluation seeds, two bot volumes, an 18-recording validation pool — it is nowhere near
+evidence that mixtures help. It is firm evidence that the untempered version was broken,
+and it suggests the hypothesis behind the mixture (an arm's reward is bimodal because the
+same threat level pays very differently to a human and to a bot) has something in it.
+Whether `mog2`/`mog3` beat `gaussian_full` on a properly trained agent, at 5 seeds and 200
+episodes, is exactly what the search is for.
+
+**Operational tell:** if a mixture posterior ever scores near 0 or negative DI, suspect the
+gate before suspecting the hypothesis. Check `MixturePosterior.gate` entropy against
+`ln K` — saturation means the tempering is wrong for that embedding width.
 
 ### 3.5 R1.6 — statistics accumulated in a moving feature space
 
@@ -343,50 +433,48 @@ also worth saying.
 
 ## 4. Hard gates — assert these in code, fail the job if they trip
 
+These are **real code**, in `preflight.py`. Do not reimplement them:
+
 ```python
-# preflight.py, imported at the top of every experiment script
-import json, os, subprocess, torch
-from expkit.humanity_scorer import ScorerConfig
-from expkit.partition import load_rotation
-from expkit.paths import RESULTS
+import preflight
+preflight.check()                                   # every script, first line of work
 
-# 1. the finalised scorer CONFIG (weights are per-fold, so never assert on T)
-CFG = ScorerConfig(representation="kinematic", padding="mask", context=32,
-                   lstm_units=(32,), dense_units=(32,), class_balance="window")
-assert scorer.cfg == CFG
+preflight.check_scorer(scorer, fold, train_refs, val_refs)
+preflight.check_batched_scoring(scorer, chunks)
+preflight.check_rotation(folds)
+preflight.check_determinism()                       # the 144/144 assertion
+preflight.check_budget(n_train_seeds=5, n_episodes=200, n_eval_seeds=20)
 
-# 2. the scorer never saw this fold's policy or evaluation block
-names = {r.name for r in scorer_train_refs} | {r.name for r in scorer_val_refs}
-assert not (names & {r.name for r in fold.rl})
-assert not (names & {r.name for r in fold.eval})
-
-# 3. batched == per-chunk
-assert max(abs(a - b) for a, b in
-           zip(scorer.score_chunks(cs), map(scorer.score_chunk, cs))) < 1e-6
-
-# 4. nothing reads the round-1 scorer selection
-assert not (RESULTS / "scorer_choice.json").exists()
-
-# 5. record the hardware honestly
-print("cuda:", torch.cuda.is_available())
-subprocess.run(["nvidia-smi"], check=False)
-
-# 6. determinism and design checks
-assert simx.run_x(..., DETERMINISTIC, PAPER_EQUIVALENT) == rlcaptcha.run_simulation(...)
-assert crossfit_gap(static_baseline) == 0.0
-exp_policy_arch_search.smoke_tests()      # the seven checks above
+df = preflight.headline(runs)                       # drops bots == 0
 ```
 
-Plus, checked by the driver rather than in Python:
+| gate | what it caught in round 1 |
+|---|---|
+| `check_no_round1_scorer_choice` | the whole RL chain ran against the wrong scorer |
+| `check_scorer` | config identity, and that the scorer never saw this fold's rl/eval blocks |
+| `check_batched_scoring` | the RL loop only uses `score_chunks`; if it disagrees with `score_chunk` every cached score is wrong and nothing downstream reveals it |
+| `check_rotation` | disjoint roles, every recording evaluated exactly once |
+| `check_determinism` | 144/144 — licenses "continuous deformation of the published environment" rather than "a different environment" |
+| `report_hardware` | 18.3 h on CPU on a node called `nvidiaserver`, discovered only afterwards |
+| `headline` | the 81 % proxy figure |
+| `check_budget` | 1 training seed and 90–150 episodes against floors of 5 and 200 |
+
+`check_scorer` deliberately does **not** assert on the temperature. `T = 1.376` belonged
+to the old 73-recording `lstm` pool; weights and temperature are refit per fold.
+
+Also enforced by the driver rather than in Python:
 
 * **≥ 5 training seeds** per learned agent — count the saved checkpoints, don't trust a flag.
-* **≥ 200 training episodes** — assert on `len(log.episodes)`.
-* **Headline averages exclude `bots == 0`** — one shared helper, used everywhere.
-* **Selection metrics come from `rl_val`, never from `eval`.**
+* **Selection metrics come from `rl_val` / `scorer ∪ rl`, never from `eval`.**
 
-**Do not run `run_all.py`. Do not run `nb_02`.** `nb_02` wrote `scorer_choice.json` and
-diverted round 1. Rename that file to `scorer_choice.round1.json` before you start, so any
-notebook still reaching for it fails loudly instead of silently repeating round 1.
+**Do not run `run_all.py`. Do not run `nb_02`.**
+
+One clarification, because the obvious reading is wrong: **`results/scorer_choice.json` is
+not in git.** It is gitignored and was never pushed, so a fresh clone does not have it —
+`nb_02` *creates* it, and `nb_03` onwards then reads it. That is exactly how round 1 went
+wrong, and it means the protection is not "delete the file" but "never run `nb_02` or
+`run_all.py`". `preflight.check()` fails the job if the file ever appears, which is the
+signal that something ran `nb_02`.
 
 ### 4.1 Porting the existing notebooks (E2–E8) to the rotation
 
@@ -421,9 +509,17 @@ Round 1 spent 18.3 hours wall-clock, **entirely on CPU**, on a node named `nvidi
 Python 3.14 has no TensorFlow GPU wheels, which is why TF never found a device.
 
 1. **Get a device, or declare CPU-only.** Pin Python **3.11 or 3.12** and install
-   `tensorflow[and-cuda]` plus a CUDA-12 PyTorch build. Log `nvidia-smi` and
-   `torch.cuda.is_available()` at job start. If Blackwell wheels are unavailable, say so
-   in the run notes and proceed on CPU — the science does not depend on it.
+   `tensorflow[and-cuda]` plus a CUDA-12 PyTorch build. `preflight.check()` logs
+   `nvidia-smi` and `torch.cuda.is_available()` at job start. If Blackwell wheels are
+   unavailable, say so in the run notes and proceed on CPU — the science does not depend
+   on it.
+
+   **The policies are pinned to CPU on purpose** (`bandits_x.DEFAULT_DEVICE`,
+   `train_dqn(device="cpu")`). The networks are tiny and `select_action` is single-sample
+   inference once per user per step, where host/device transfer dominates any kernel
+   saving — a GPU makes it *slower*, and it removes a class of device-mismatch bugs. The
+   scorer's Keras training is the only part that would benefit, and it is the cheap part.
+   Override with `device=` if you want to measure it.
 2. **Parallelise, which matters far more.** Every workload is small and single-threaded: a
    6,081-parameter LSTM, a ≤256-wide MLP, and a pure-Python simulation loop. A GPU buys
    almost nothing per run. Throughput does. `nb_03b`'s **10 independent splits ran
@@ -453,22 +549,31 @@ that is most of a day, not two hours. If that is too much, in order of preferenc
 `train_every` from 5; drop to 3 seeds for the first pass and re-run 5 seeds only on the
 finalists; trim `BANDIT_ARCHS` to 3.
 
-**The workflow, in order.** Each step is a separate job; don't collapse them.
+**The workflow, in order.** Each step is a separate job; don't collapse them. The scripts
+are in `slurm/`, and `slurm/README.md` is the operational copy of this list.
 
 ```bash
-python exp_policy_arch_search.py --smoke            # 1. validate wiring, minutes
-python exp_policy_arch_search.py --prepare          # 2. fit the 3 per-fold scorers ONCE
-python exp_policy_arch_search.py --list --seeds 5   # 3. prints the exact --array line
-sbatch --array=0-224%25 run_one.sh                  # 4. one training per task
-python exp_policy_arch_search.py --collect          # 5. concatenate + apply the rule
+# 0. validate everything, minutes
+python preflight.py
+python exp_scorer_phase0.py --smoke
+python exp_policy_arch_search.py --smoke
+
+# 1. Phase 0 (no dependencies -- launch first)
+python exp_scorer_phase0.py --list
+sbatch --array=0-779%25 slurm/phase0.sh
+python exp_scorer_phase0.py --audit && python exp_scorer_phase0.py --collect
+
+# 2. fit the three per-fold scorers ONCE
+sbatch slurm/prepare_scorers.sh
+
+# 3. the policy + posterior search
+python exp_policy_arch_search.py --list --seeds 5   # prints the exact --array line
+sbatch --array=0-224%25 slurm/arch_search.sh
+python exp_policy_arch_search.py --collect
 ```
 
-with `run_one.sh` being just:
-
-```bash
-#SBATCH --cpus-per-task=2
-python exp_policy_arch_search.py --task $SLURM_ARRAY_TASK_ID --episodes 200
-```
+Adjust `--partition`, `--time`, `--mem` and the conda path in `slurm/*.sh` for your
+cluster — those are the only lines that should need editing.
 
 Step 2 is not optional. Each task loads the cached scorer from
 `results/fold{i}_scorer/`; if tasks refit their own, TF/oneDNN nondeterminism gives
@@ -484,18 +589,75 @@ applies the selection rule; no individual task does.
 
 ### Priority 0 — Phase 0, config confirmation only (cheap, launch first)
 
-`P0.1`–`P0.7` from the handoff §4.3 at **5 seeds**, chunk operating point, deduplicated
-chunks, grouped 5-fold by recording. The §4.3 selection rule is already fixed in writing
-and must not change.
+**Run `exp_scorer_phase0.py`.** Do **not** use `nb_10_scorer_search.py` — it is superseded.
+It searches at the *session* operating point through `expkit.scorer_search`/`XScorer`, and
+the ranking inverts at the chunk operating point the RL loop actually uses; that inversion
+is what produced the current design. `probe_decide.py` had the right operating point but
+cross-validated over all 156 recordings, so the evaluation block helped choose the config.
 
-**One change from the original plan:** run Phase 0 **per fold on `scorer ∪ rl` only**, not
-on all 156. Selecting the scorer config with the evaluation block in the cross-validation
-is a mild version of the same test-set-selection problem. If all three folds pick the same
-config, the scorer design is clean and you can say so.
+```bash
+python exp_scorer_phase0.py --validate    # builds all 52 configs, no training
+python exp_scorer_phase0.py --list        # 780 tasks at 5 seeds -> the --array line
+sbatch --array=0-779%25 slurm/phase0.sh
+python exp_scorer_phase0.py --audit       # P0.6, no training, seconds
+python exp_scorer_phase0.py --collect
+```
 
-Expect confirmation, not change: round 1's independent probes already put
-`kinematic`+`mask`+ctx 32 on top at chunk AUC 0.970 / ECE 0.014, and reproduced the
-movement-count result (NaiveBot recall 1.000 at 5.9 % human FP, AUC 0.968).
+It implements `P0.1`–`P0.7` as named grids (`p01`…`p07`, selectable with `--sweeps`), each
+varying **one** axis away from the round-1 answer:
+
+| sweep | axis | configs |
+|---|---|---|
+| `p01` | representation × padding, at ctx 32 | 20 |
+| `p02` | capacity, on the two strongest representations (last row = the published 304,049-parameter architecture, as reference) | 12 |
+| `p03` | lr × dropout × recurrent dropout | 12 |
+| `p04` | class balancing, `window` vs `family` | 2 |
+| `p05` | augmentation — none / rigid / per-move ±1,±2,±3 / gaussian σ=1,2 | 7 |
+| `p07` | context length {16, 24, 32, 50, 64} | 5 |
+
+58 grid entries, **52 distinct** — every sweep varies one axis away from the same
+baseline, so the baseline appears six times. `task_list` deduplicates by config identity;
+without that the baseline would collect 6x the rows of any competitor, shrinking its
+standard error by ~√6, narrowing the 1-SE band around it and pushing competitors out of
+the ECE tiebreak. "Confirmation" would then be partly an artefact of the bookkeeping.
+
+**Two properties it enforces that the old scripts did not:**
+
+* **Per fold, on `scorer ∪ rl` only** — the evaluation block never participates in
+  choosing a scorer config (asserted). If all three folds agree, the design is clean and
+  the paper can say so; `phase0_choice.json` reports `unanimous` either way.
+* **Per-family recall at 0.5 with window counts, never per-family AUC.** AUC over a
+  5-window class is meaningless — it is what made NaiveBot look like a 0.975 failure when
+  its recall was 16/16.
+
+The selection rule is fixed in the module docstring: chunk AUC (SE over seeds) → within
+1 SE, lowest ECE after temperature scaling → lowest `|corr(score, padding_fraction)|` →
+fewest parameters.
+
+Expect confirmation, not change. Round 1's independent probes already put
+`kinematic`+`mask`+ctx 32 on top at chunk AUC 0.970 / ECE 0.014, and a smoke run of this
+script on fold 0 reselected it (`window` 0.954 vs `family` 0.949).
+
+**Phase 0 confirms; it does not silently re-pin the design.** Downstream code reads
+`preflight.FINAL_SCORER_CFG`, which is hardcoded, and `phase0_choice.json` is a *report*.
+If Phase 0 picks something else — plausible, with 52 configs and an ECE tiebreak —
+**stop and tell the user.** Changing the scorer invalidates every Phase 1 and Phase 2
+result computed before it, so that is their call, not an automatic re-run. Note also that
+`p02` includes the published 304,049-parameter architecture as a reference row: if it wins,
+that is a genuinely interesting negative result about the whole "right-sized scorer"
+section, not a config update.
+
+Validate the grid first — it takes seconds and catches a typo before 780 array tasks fail
+hours later:
+
+```bash
+python exp_scorer_phase0.py --validate     # builds all 52 distinct configs, no training
+```
+
+Only `p04` has ever actually trained. `repeat_row`, `zero_mask`, `xy_dt`, the rigid and
+gaussian augmentations, `recurrent_dropout` and the (200,100)+dense(128,64) architecture
+have not, though all 58 grid entries are confirmed to build and produce well-shaped
+windows.
 
 ### Priority 1 — the policy and posterior search, then the headline table
 
@@ -503,11 +665,32 @@ movement-count result (NaiveBot recall 1.000 at 5.9 % human FP, AUC 0.968).
 retrained on the policy block by construction, so there is no separate "retrain the
 bandits" step. Keep the published bandit classes only for the reproduction table.
 
-Then **E1**, the headline table: all six policies, one environment, 5 training seeds, 200+
-episodes, 50 evaluation seeds, recording-level bootstrap CIs at 1000+ resamples, pooled
-across the three folds. Produce it twice — **headline** (equal footing, the selected
-architectures) and **reproduction** (published configuration, published checkpoints) — and
-report each with and without the zero-bot cell, clearly labelled.
+Then **E1**, the headline table. This is the paper's central table and the step most
+likely to be improvised — which is how round 1 went wrong — so the spec is exact. Write
+`exp_headline_table.py` to do precisely this:
+
+1. **Per fold**, read `policy_arch_choice.json` and take the winner for **each family
+   separately** — `dqn`, `linucb`, `thompson`. The Thompson winner includes its
+   **posterior** (`gaussian` / `gaussian_full` / `mog2` / `mog3`), not just its
+   architecture.
+2. **The ablation** (`DQN without H-Score`) uses the **DQN winner's architecture** with
+   `use_score=False`. It is an ablation of the winner, not of the published net.
+3. **Retrain every learned policy on the full `fold.rl`** — not `rl_fit`, which was only
+   for selection — at **5 seeds × 200+ episodes**, all with the same `cfg`, the same
+   `bot_choices`, and the same budget. An unequal budget is what produced §2's inversion.
+4. **Evaluate on `fold.eval`**, all six bot volumes, **50 evaluation seeds**. The statics
+   need no training and go through the identical loop.
+5. **Pool the three folds** — every recording is then evaluated exactly once across all
+   156 — and bootstrap **at the recording level**, 1000+ resamples. Seed-level intervals
+   are tight no matter how small the pool is and are not the uncertainty a reader cares
+   about.
+6. **Exclude the zero-bot cell** from every headline mean (`preflight.headline`). Print
+   the all-six average alongside, explicitly labelled, for continuity with the published
+   Table 4 and nothing else.
+
+Produce it **twice**: **headline** (equal footing, selected architectures, retrained
+bandits) and **reproduction** (published configuration and published checkpoints, to show
+Table 4 is recoverable). The two differ in every way listed in §2 — say so in the caption.
 
 This is what decides §2.
 
@@ -642,9 +825,12 @@ is safe.
 
 ## 8. Deliverables for round 2
 
-1. `results/phase0_*.csv` (per fold) and the per-fold scorer artefacts.
-2. `results/rotation.json`, `policy_arch_runs_fold*.csv`, `policy_arch_{dqn,bandit}_fold*.csv`,
-   `policy_arch_choice.json` — the architecture and posterior search.
+1. `results/phase0/` (per-task CSVs), `phase0_runs.csv`, `phase0_table_fold*.csv`,
+   `phase0_choice.json`, `phase0/p06_activity_audit.csv`, and `results/fold*_scorer/`.
+   State whether the config choice was **unanimous across the three folds**.
+2. `results/rotation.json`, `results/arch_search/` (per-task CSVs), `policy_arch_runs.csv`,
+   `policy_arch_{dqn,bandit}_fold*.csv`, `policy_arch_choice.json` — including its
+   `cross_fold_agreement` field.
 3. One CSV per experiment; a regenerated `FINDINGS.md` from a **fixed**
    `summarise_results.py` — keep the property that nothing is hand-entered.
 4. **Two** Table 4s — headline (equal footing) and reproduction — XLSX + PDF, each
@@ -658,3 +844,22 @@ is safe.
    the `xy_dt` scorer but it loads the kinematic `HumanityScorer` — the inference state
    distribution will not match training. Rebuild from the round-2 agents, and check the
    movement-dict key (`time` vs `timestamp`) against `expkit.features`.
+
+### A `.gitignore` trap, if you push results back
+
+`.gitignore` line 216 is a blanket `*.json`, so **every result JSON is silently ignored** —
+`phase0_choice.json`, `policy_arch_choice.json`, and anything else. This has already cost
+this project once: the training data appeared to be committed and was not. Use
+
+```bash
+git add -f training/experiments/results/*.json
+git status --short          # confirm they are actually staged
+```
+
+and check `git ls-files` afterwards rather than trusting a clean `git status`. Git applies
+the **last** matching rule, so adding a `!` exception above a later blanket rule does
+nothing.
+
+`results/rotation.json` is already committed (force-added), so the three folds are fixed
+and identical on every machine — do not regenerate it. The scripts load it if present and
+only fall back to `make_rotation` when it is missing.

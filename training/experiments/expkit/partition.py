@@ -245,10 +245,38 @@ def save_rotation(folds: list[RotationFold], path: Path) -> Path:
     return Path(path)
 
 
+def _rebind(records: list[dict], index: dict[str, SessionRef] | None = None
+            ) -> list[SessionRef]:
+    """Resolve saved records against THIS machine's recordings, by filename.
+
+    `SessionRef.path` is absolute, so a partition saved on one machine carries paths like
+    `C:\\Users\\...` that do not exist on the cluster. `name` is the stable identity --
+    filenames are unique across both campaigns (verified: zero filename overlap) -- so the
+    split is portable as long as the paths are re-resolved on load rather than trusted.
+
+    Without this, `_load_one` raises `FileNotFoundError` on the first recording. Loud
+    rather than silent, but still a broken run.
+    """
+    index = index if index is not None else {r.name: r for r in index_sessions()}
+    out, missing = [], []
+    for rec in records:
+        ref = index.get(rec["name"])
+        if ref is None:
+            missing.append(rec["name"])
+        else:
+            out.append(ref)
+    if missing:
+        raise FileNotFoundError(
+            f"{len(missing)} recording(s) in the saved split are not present here, "
+            f"e.g. {missing[:3]}. Check that both campaign directories are populated.")
+    return out
+
+
 def load_rotation(path: Path) -> list[RotationFold]:
     payload = json.loads(Path(path).read_text())
+    index = {r.name: r for r in index_sessions()}
     return [RotationFold(index=d["index"],
-                         **{role: [SessionRef(**x) for x in d[role]]
+                         **{role: _rebind(d[role], index)
                             for role in ("scorer", "rl", "eval", "rl_fit", "rl_val")})
             for d in payload["folds"]]
 
@@ -264,7 +292,8 @@ def save_partition(partition: dict[str, list[SessionRef]], path: Path = PARTITIO
 
 def load_partition(path: Path = PARTITION_JSON) -> dict[str, list[SessionRef]]:
     payload = json.loads(Path(path).read_text())
-    return {s: [SessionRef(**d) for d in payload["splits"][s]] for s in SPLITS}
+    index = {r.name: r for r in index_sessions()}
+    return {s: _rebind(payload["splits"][s], index) for s in SPLITS}
 
 
 def summarise(partition: dict[str, list[SessionRef]]):

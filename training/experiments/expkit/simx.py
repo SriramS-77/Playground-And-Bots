@@ -276,3 +276,60 @@ def evaluate_x(x: XSimResult):
     from rlcaptcha.metrics import evaluate
 
     return evaluate(to_sim_result(x))
+
+
+def verify_against_published(bot_counts=(0, 20, 100, 200, 500, 1000),
+                             seeds=(1, 2, 3, 4)) -> tuple[int, int]:
+    """The 144/144 assertion, as a callable.
+
+    All six published policies x six bot volumes x four seeds: survivor counts from
+    `run_x` in the deterministic limit must be IDENTICAL to
+    `rlcaptcha.simulate.run_simulation` -- not merely equal in distribution. This is what
+    licenses every statement of the form "the probabilistic environment is a continuous
+    deformation of the published one" rather than "a different environment".
+
+    Lifted out of `nb_06` so `preflight.check_determinism` can run it in CI. The bandit
+    rows use the published bandit environment (`overkill=2.0`,
+    `abandonment_applies_to_bots=True`) because that is what they were *published* under;
+    this function reproduces the paper, it does not equalise it. Equalising is E1's job.
+    """
+    import dataclasses
+
+    import numpy as _np
+    import torch as _torch
+
+    from rlcaptcha.config import BANDIT_REWARDS, DQN_REWARDS
+    from rlcaptcha.data import load_sessions
+    from rlcaptcha.policies.bandits import LinUCBPolicy, ThompsonPolicy
+    from rlcaptcha.policies.dqn import DQNAblationPolicy, DQNPolicy
+    from rlcaptcha.policies.static import MultiThresholdPolicy, SingleThresholdPolicy
+    from rlcaptcha.scoring import BotScorer, ScoreCache
+    from rlcaptcha.simulate import run_simulation
+
+    from .stochastic import DETERMINISTIC, PAPER_EQUIVALENT
+
+    bandit_cfg = dataclasses.replace(PAPER_EQUIVALENT, overkill=2.0,
+                                     abandonment_applies_to_bots=True)
+    humans, bots = load_sessions()
+    cache = ScoreCache(BotScorer()).precompute(humans, bots, verbose=False)
+    checks = [(DQNPolicy(epsilon=0.0), DQN_REWARDS, PAPER_EQUIVALENT),
+              (DQNAblationPolicy(epsilon=0.0), DQN_REWARDS, PAPER_EQUIVALENT),
+              (SingleThresholdPolicy(), DQN_REWARDS, PAPER_EQUIVALENT),
+              (MultiThresholdPolicy(), DQN_REWARDS, PAPER_EQUIVALENT),
+              (LinUCBPolicy(), BANDIT_REWARDS, bandit_cfg),
+              (ThompsonPolicy(), BANDIT_REWARDS, bandit_cfg)]
+
+    ok = total = 0
+    for policy, rewards, cfg in checks:
+        for n_bots in bot_counts:
+            for seed in seeds:
+                _torch.manual_seed(seed)
+                _np.random.seed(seed)
+                a = run_simulation(policy, humans, bots, n_bots, cache=cache,
+                                   rewards=rewards, seed=seed)
+                b, _ = run_x(policy, humans, bots, n_bots, cache=cache,
+                             solve=DETERMINISTIC, cfg=cfg, seed=seed)
+                total += 1
+                ok += ((a.surviving_humans, a.surviving_bots)
+                       == (b.surviving_humans, b.surviving_bots))
+    return ok, total

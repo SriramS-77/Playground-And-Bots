@@ -36,19 +36,33 @@ from .stochastic import DETERMINISTIC, PAPER_EQUIVALENT
 MEMORY_SIZE = 10_000
 
 
+PUBLISHED_HIDDEN = (128, 64, 32)
+
+
 class QNet(nn.Module):
-    def __init__(self, state_size: int, action_size: int = N_ACTIONS):
+    """Published default is 128-64-32-11.
+
+    `hidden` is configurable for the round-2 depth/width search. The layers are still
+    named `layer1..layerN`, so at the default the state_dict keys and shapes are
+    byte-compatible with the published checkpoints -- `exp_policy_arch_search.py`
+    asserts that.
+    """
+
+    def __init__(self, state_size: int, action_size: int = N_ACTIONS,
+                 hidden: tuple[int, ...] = PUBLISHED_HIDDEN):
         super().__init__()
-        self.layer1 = nn.Linear(state_size, 128)
-        self.layer2 = nn.Linear(128, 64)
-        self.layer3 = nn.Linear(64, 32)
-        self.layer4 = nn.Linear(32, action_size)
+        if not hidden:
+            raise ValueError("hidden must contain at least one layer")
+        dims = [state_size, *hidden]
+        for i in range(len(hidden)):
+            setattr(self, f"layer{i + 1}", nn.Linear(dims[i], dims[i + 1]))
+        setattr(self, f"layer{len(hidden) + 1}", nn.Linear(hidden[-1], action_size))
+        self.n_layers = len(hidden) + 1
 
     def forward(self, x):
-        x = F.relu(self.layer1(x))
-        x = F.relu(self.layer2(x))
-        x = F.relu(self.layer3(x))
-        return self.layer4(x)
+        for i in range(1, self.n_layers):
+            x = F.relu(getattr(self, f"layer{i}")(x))
+        return getattr(self, f"layer{self.n_layers}")(x)
 
 
 def full_features(user, n_active) -> np.ndarray:
@@ -76,20 +90,22 @@ class TrainableDQN:
     initial_last_threat = 0
 
     def __init__(self, name="DQN (retrained)", use_score: bool = True,
-                 device: str | None = None, seed: int = 0):
+                 device: str | None = None, seed: int = 0,
+                 hidden: tuple[int, ...] = PUBLISHED_HIDDEN, lr: float = 5e-4):
         self.name = name
         self.needs_bot_score = use_score
         self.features_fn = full_features if use_score else ablation_features
         self.state_size = 5 if use_score else 3
+        self.hidden = tuple(hidden)
 
         torch.manual_seed(seed)
         self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
-        self.policy_net = QNet(self.state_size).to(self.device)
-        self.target_net = QNet(self.state_size).to(self.device)
+        self.policy_net = QNet(self.state_size, hidden=self.hidden).to(self.device)
+        self.target_net = QNet(self.state_size, hidden=self.hidden).to(self.device)
         self.target_net.load_state_dict(self.policy_net.state_dict())
         self.target_net.eval()
 
-        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=5e-4)
+        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=lr)
         self.criterion = nn.HuberLoss()
         self.gamma = 0.95
         self.epsilon = 1.0
@@ -158,7 +174,8 @@ class TrainableDQN:
 
     def save(self, path):
         torch.save({"policy_net_state_dict": self.policy_net.state_dict(),
-                    "epsilon": self.epsilon, "state_size": self.state_size}, str(path))
+                    "epsilon": self.epsilon, "state_size": self.state_size,
+                    "hidden": self.hidden}, str(path))
 
     def load(self, path):
         ckpt = torch.load(str(path), map_location=self.device, weights_only=False)

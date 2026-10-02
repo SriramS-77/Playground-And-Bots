@@ -131,7 +131,9 @@ def smoke_tests(verbose: bool = True):
     assert a == b, (a, b)
     ok("FeatureNetX at hidden=(128,) matches the published FeatureNet")
 
-    # 3. K=1 mixture == published Gaussian Thompson draw, bit-exactly.
+    # 3. K=1 mixture == the published Gaussian Thompson draw, same RNG stream. The
+    #    statistics are float64 since round 3 (`bandits_x._STAT_DTYPE`) and theta / sigma
+    #    are cast to float32 before the draw, so this matches to float32 rounding.
     d, alpha = 8, 1.0
     post = MixturePosterior(d, 1, alpha, "diag")
     rng = np.random.default_rng(0)
@@ -142,15 +144,37 @@ def smoke_tests(verbose: bool = True):
     z = torch.tensor(rng.normal(size=d), dtype=torch.float32)
 
     invA = torch.linalg.inv(post.A[0])
-    theta = invA @ post.b[0]
-    sigma = alpha * torch.sqrt(torch.diag(invA))
+    theta = (invA @ post.b[0]).float()
+    sigma = (alpha * torch.sqrt(torch.diag(invA))).float()
     torch.manual_seed(7)
     want = float(z @ (theta + torch.randn_like(theta) * sigma))
     torch.manual_seed(7)
     got = post.thompson_score(z)
-    assert abs(want - got) < 1e-9, (want, got)
+    assert abs(want - got) < 1e-5, (want, got)
     assert float(post.gate(z)[0]) == 1.0
-    ok("K=1 posterior reproduces published Gaussian Thompson Sampling exactly")
+    ok("K=1 posterior reproduces the published Gaussian Thompson draw")
+
+    # 3b. Ill-conditioned A -- the regime that killed 11 round-2 tasks. Dead embedding
+    #     units plus large, low-rank activations put cond(A) near 1e10. In float32 the
+    #     full-covariance path raised LinAlgError and every other posterior was silently
+    #     wrong; the float64 statistics must match an exact float64 solve.
+    n_ill, d_ill = 20_000, 64
+    rng_ill = np.random.default_rng(11)     # own stream: later tests keep their draws
+    Zi = (np.abs(rng_ill.normal(size=(n_ill, 6))) @ np.abs(rng_ill.normal(size=(6, d_ill)))
+          * 30.0).astype(np.float32)
+    Zi[:, : d_ill // 4] = 0.0
+    Ri = (Zi.astype(np.float64) @ rng_ill.normal(size=d_ill) * 0.01
+          + rng_ill.normal(size=n_ill)).astype(np.float32)
+    Z64 = Zi.astype(np.float64)
+    theta_exact = np.linalg.solve(np.eye(d_ill) + Z64.T @ Z64, Z64.T @ Ri.astype(np.float64))
+    for cov in ("diag", "full"):
+        p = MixturePosterior(d_ill, 1, alpha, cov).fit_batch(Zi, Ri)
+        p.freeze()
+        pred = Z64[:2000] @ p._theta[0].double().numpy()
+        c = float(np.corrcoef(pred, Z64[:2000] @ theta_exact)[0, 1])
+        assert c > 0.999, (cov, c)
+        assert bool(torch.isfinite(p._scale[0]).all()), cov
+    ok("posteriors stay exact at cond(A) ~1e10 (round-2 Cholesky crash regime)")
 
     # 4. A mixture gate actually depends on the context (the whole point -- a
     #    context-free gate leaves E[r|z,a] linear in z and adds nothing).
@@ -258,16 +282,82 @@ def batched_cache(scorer: HumanityScorer, *groups, verbose: bool = True) -> Scor
 
 def fold_scorer(fold, seed: int = 0, val_fraction: float = 0.25,
                 cfg: ScorerConfig = FINAL_SCORER_CFG) -> HumanityScorer:
-    """Refit the finalised scorer design on this fold's scorer block only."""
+    """Refit the finalised scorer design on this fold's `scorer + rl` blocks.
+
+    **Not `fold.scorer` alone** -- on that pool the fit is *unstable*. The 25 % validation
+    split is ~13 recordings, and early stopping (patience 15, restore best weights) on a
+    set that small is at the mercy of which recordings land in it. Measured on fold 0,
+    evaluating on the unseen `eval` block:
+
+        pool          seed   val windows   best epoch   eval AUC
+        scorer          0        89            1         0.70    <- collapsed (round 2)
+        scorer          1       142           30         0.93
+        scorer          2       131            5         0.80    <- partial collapse
+        scorer + rl     0       288           26         0.95
+        scorer + rl     1         -            -         0.97
+
+    and `scorer + rl` held 0.95-0.98 on all three folds at two seeds each. The collapsed
+    fit restores the epoch-1 weights, so raw outputs sit in 0.41-0.64 for everyone (human
+    0.504 vs bot 0.518). That destroys every fixed threshold downstream --
+    `SingleThresholdPolicy` sends anything above 0.5 straight to threat 10, where
+    abandonment is certain, so it kept **0 %** of humans -- and nothing raises an error,
+    which is why `preflight.check_scorer_health` now gates every fit.
+
+    Training the scorer on the policy block is **not** the leak E2 measured. That leak was
+    the agent training on the recordings it was *evaluated* on, and it flowed into the
+    evaluation number. Here the invariant that matters still holds exactly:
+
+        the EVALUATION block is unseen by the scorer AND by the policy.
+
+    It also matches deployment -- a scorer is fitted on historical traffic and the policy
+    then learns against that scorer's outputs over the same period -- and it makes the
+    fold scorer consistent with Phase 0, which already cross-validates within
+    `scorer + rl`.
+    """
     from expkit.partition import split_refs
 
-    train_refs, val_refs = split_refs(fold.scorer, val_fraction, seed=seed)
+    pool = list(fold.scorer) + list(fold.rl)
+    train_refs, val_refs = split_refs(pool, val_fraction, seed=seed)
     scorer = HumanityScorer(dataclasses.replace(cfg)).fit(train_refs, val_refs, seed=seed)
-    # The gate that matters: the scorer must never have seen the policy or eval blocks.
     names = {r.name for r in train_refs} | {r.name for r in val_refs}
-    assert not (names & {r.name for r in fold.rl}), "scorer saw the policy block"
     assert not (names & {r.name for r in fold.eval}), "scorer saw the evaluation block"
+    scorer.provenance = _scorer_provenance(fold, seed, val_fraction, train_refs, val_refs)
+    preflight.check_scorer_health(scorer)
     return scorer
+
+
+SCORER_POOL = "scorer+rl"
+
+
+def _scorer_provenance(fold, seed, val_fraction, train_refs, val_refs) -> dict:
+    return {"fold": int(fold.index), "pool": SCORER_POOL, "seed": int(seed),
+            "val_fraction": float(val_fraction),
+            "train": sorted(r.name for r in train_refs),
+            "val": sorted(r.name for r in val_refs)}
+
+
+def _stale_reason(scorer: HumanityScorer, fold, seed: int) -> str | None:
+    """Why a cached fold scorer must not be reused, or None if it matches this code.
+
+    Round 2 cached its fold scorers in `results/fold{0,1,2}_scorer/`, fitted on
+    `fold.scorer` alone, and `fold_scorer_cached` reused anything it found there. Pulling
+    the `scorer + rl` fix would therefore have changed nothing on the cluster: every task
+    would have reloaded the collapsed fold-0 scorer.
+    """
+    from expkit.partition import split_refs
+
+    p = scorer.provenance
+    if not p:
+        return ("no provenance record -- saved before the scorer+rl fix; round 2's cached "
+                "fold scorers were fitted on fold.scorer alone")
+    if p.get("pool") != SCORER_POOL:
+        return f"fitted on pool {p.get('pool')!r}, expected {SCORER_POOL!r}"
+    if p.get("fold") != fold.index or p.get("seed") != seed:
+        return f"fitted for fold {p.get('fold')} seed {p.get('seed')}"
+    tr, va = split_refs(list(fold.scorer) + list(fold.rl), p["val_fraction"], seed=seed)
+    if p["train"] != sorted(r.name for r in tr) or p["val"] != sorted(r.name for r in va):
+        return "its train/val recordings do not match this rotation"
+    return None
 
 
 def score_policy(policy, humans, bots, cache, seeds: int, volumes=SCORED_VOLUMES,
@@ -284,7 +374,15 @@ def score_policy(policy, humans, bots, cache, seeds: int, volumes=SCORED_VOLUMES
             rows.append({"policy": policy.name, "bots": n_bots, "seed": seed,
                          "DI": m.DI, "BOS": m.BOS, "SP_F1": m.SP_F1, "SI_F1": m.SI_F1,
                          "humans_left": result.surviving_humans,
-                         "bots_left": result.surviving_bots})
+                         "bots_left": result.surviving_bots,
+                         # DI cannot see what a policy charges the humans it keeps, and
+                         # round 2 recorded DI only -- so the search said nothing about
+                         # friction. Seconds are summed over every step a human was
+                         # challenged and divided by ALL humans, including those who
+                         # left; read it next to human_survival, never alone.
+                         "human_survival": result.surviving_humans / result.n_humans,
+                         "bot_survival": result.surviving_bots / max(result.n_bots, 1),
+                         "friction_s": result.mean_human_friction_seconds})
     return pd.DataFrame(rows)
 
 
@@ -316,18 +414,32 @@ def n_params(module) -> int:
 # The search
 # --------------------------------------------------------------------------- #
 
-def fold_scorer_cached(fold, seed: int = 0) -> HumanityScorer:
+def fold_scorer_cached(fold, seed: int = 0, refit_stale: bool = False) -> HumanityScorer:
     """Fit the fold's scorer once and reuse it.
 
     Every task in the array must score against the *same* scorer. If each refits its own,
     TF/oneDNN nondeterminism gives slightly different weights and candidates are then
     ranked against different yardsticks. Run `--prepare` first; tasks then load.
+
+    A cached scorer is reused only if its provenance matches this code (`_stale_reason`)
+    and it passes the health gate. A stale cache fails the task -- array tasks must never
+    refit concurrently into the same directory -- unless `refit_stale`, which `--prepare`
+    sets, in which case it is refitted and overwritten.
     """
     d = OUT / f"fold{fold.index}_scorer"
     if (d / "model.keras").exists():
-        return HumanityScorer.load(d)
+        scorer = HumanityScorer.load(d)
+        stale = _stale_reason(scorer, fold, seed)
+        if stale is None:
+            preflight.check_scorer_health(scorer)
+            return scorer
+        if not refit_stale:
+            raise RuntimeError(
+                f"{d} is stale: {stale}. Run `python exp_policy_arch_search.py --prepare` "
+                "(it refits stale scorers) before launching the array.")
+        print(f"  {d.name} is stale ({stale}) -- refitting")
     from expkit.partition import split_refs
-    train_refs, val_refs = split_refs(fold.scorer, 0.25, seed=seed)
+    train_refs, val_refs = split_refs(list(fold.scorer) + list(fold.rl), 0.25, seed=seed)
     scorer = fold_scorer(fold, seed=seed)
     preflight.check_scorer(scorer, fold, train_refs, val_refs)
     scorer.save(d)
@@ -356,6 +468,7 @@ def run_task(task: dict, folds, episodes: int, eval_seeds: int) -> pd.DataFrame:
     fit_h, fit_b = sessions_from_refs(fold.rl_fit)
     val_h, val_b = sessions_from_refs(fold.rl_val)
     cache = batched_cache(scorer, fit_h, fit_b, val_h, val_b, verbose=False)
+    preflight.check_threshold_canary(cache, fit_h, fit_b)
 
     seed, rows = task["seed"], []
     if task["family"] == "dqn":
@@ -378,9 +491,17 @@ def run_task(task: dict, folds, episodes: int, eval_seeds: int) -> pd.DataFrame:
         if kind == "thompson":
             # Same weights, same buffer -- the posterior is the only thing that varies.
             for name in POSTERIORS:
-                if name != "gaussian":
+                if name == "gaussian":
+                    continue
+                try:
                     variants[f"{kind}:{arch.name}:{name}"] = \
                         fit_posteriors_from(policy, policy._buffer, name)
+                except torch.linalg.LinAlgError as exc:
+                    # In round 2 one posterior's linear algebra failing killed the whole
+                    # task, and the three posteriors that had worked were lost with it
+                    # (11 of 225 tasks). Keep the others; `collect` reports the gap.
+                    print(f"  POSTERIOR FAILED {kind}:{arch.name}:{name} fold={fold.index} "
+                          f"seed={seed}: {exc}", file=sys.stderr, flush=True)
         params = {k: n_params(v.net) for k, v in variants.items()}
 
     for tag, variant in variants.items():
@@ -413,6 +534,15 @@ def collect() -> dict:
     if len(files) != expected:
         print(f"WARNING: {len(files)} task CSVs but the grid expects {expected}. "
               "Array tasks failed; selection would run on an incomplete grid.")
+    # A task can also finish with a candidate missing (a posterior that failed), so check
+    # at candidate level too: every candidate should have every training seed.
+    n_seeds = runs.train_seed.nunique()
+    per = runs.groupby(["fold", "candidate"])["train_seed"].nunique()
+    short = per[per < n_seeds]
+    if len(short):
+        print(f"WARNING: {len(short)} (fold, candidate) cells have fewer than {n_seeds} "
+              "training seeds -- their SE is wider and the selection is on less data:")
+        print(short.to_string())
 
     chosen: dict = {}
     for fold in sorted(runs.fold.unique()):
@@ -423,6 +553,13 @@ def collect() -> dict:
                 continue
             params = sub.groupby("candidate")["params"].first().to_dict()
             pick, table = select(sub, params)
+            # Reported alongside, NOT used by the rule: the rule was fixed on DI before
+            # running and is not changed afterwards. Round-2 CSVs lack these columns.
+            extra = [c for c in ("human_survival", "bot_survival", "friction_s")
+                     if c in sub.columns]
+            if extra:
+                table = table.merge(sub.groupby("candidate")[extra].mean().reset_index(),
+                                    on="candidate", how="left")
             table["fold"], table["group"] = fold, group
             table.to_csv(OUT / f"policy_arch_{group}_fold{fold}.csv", index=False)
             chosen[int(fold)][group] = pick
@@ -485,12 +622,13 @@ def main():
     if args.prepare:
         for fold in folds:
             t = time.time()
-            scorer = fold_scorer_cached(fold)
+            scorer = fold_scorer_cached(fold, refit_stale=True)
             # The RL loop only ever calls score_chunks. If it disagrees with score_chunk,
             # every cached score is wrong and nothing downstream would reveal it.
             h, b = sessions_from_refs(fold.rl_val)
             chunks = [c for s in (h + b) for c in s.chunks][:64]
             preflight.check_batched_scoring(scorer, chunks)
+            preflight.check_threshold_canary(batched_cache(scorer, h, b, verbose=False), h, b)
             print(f"  fold {fold.index} scorer ready, batched==per-chunk "
                   f"[{time.time() - t:.0f}s]")
         return

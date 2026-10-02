@@ -1,0 +1,6 @@
+# Trained artefacts from the local preview: regenerable by rerunning notebook 01, and
+# the .pt/.keras blobs are large. Result CSVs and figures ARE tracked -- they are the
+# point of this folder.
+agents/
+__pycache__/
+_smoke*.py

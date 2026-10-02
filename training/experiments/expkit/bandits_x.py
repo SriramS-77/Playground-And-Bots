@@ -75,7 +75,8 @@ representational power and would just randomise over "the world is all human" ve
 "all bot" -- noise, not a Thompson sample.
 
 At K=1 the gate is identically 1 and the update reduces to the published ridge recursion,
-so **K=1 reproduces Gaussian Thompson Sampling bit-exactly** under the same seed.
+so **K=1 reproduces Gaussian Thompson Sampling** under the same seed, to float32
+rounding (the statistics are float64 -- see `_STAT_DTYPE`).
 `exp_policy_arch_search.py` asserts it.
 
 `cov="full"` is offered alongside so that "the mixture helped" cannot be confused with
@@ -102,6 +103,54 @@ from .trainer import TrainLog, full_features
 
 MEMORY_SIZE = 10_000
 _EPS = 1e-6
+
+
+#: Sufficient statistics A = I + sum z z^T and b = sum r z are kept in float64.
+#:
+#: Round 2 kept them in float32, and 11 of 225 search tasks died in the full-covariance
+#: posterior ("not positive-definite"), all on the deep bandit nets. That crash was the
+#: visible symptom. With dead or redundant embedding units A's eigenvalues run from 1 to
+#: ~1e10, float32 rounding at 1e10 is ~1e3, and the stored A has already lost the "I +"
+#: that makes it positive-definite. Every posterior reads that A: on a synthetic A at that
+#: conditioning the float32 posterior mean's reward predictions correlated -0.20 with the
+#: exact ones, and 24 of 64 diagonal variances were silently clamped to zero. Only the
+#: full-covariance path failed loudly. float64 accumulation holds to cond ~1e15.
+#:
+#: Everything downstream of the solve -- theta, the sampling scale, inv(A) for UCB -- is
+#: cast back to float32, so scoring, the RNG stream of the Thompson draw, and the K=1
+#: equivalence with the published expression are unchanged up to float32 rounding.
+_STAT_DTYPE = torch.float64
+
+
+def _spd_cholesky(A: torch.Tensor) -> torch.Tensor:
+    """Lower Cholesky factor of A = I + Z^T Z, which is SPD with every eigenvalue >= 1.
+
+    If rounding has still broken that (it should not at float64), project A back onto the
+    set it is known to lie in -- eigenvalues clamped at 1 -- rather than add ad-hoc jitter.
+    """
+    if not bool(torch.isfinite(A).all()):
+        raise torch.linalg.LinAlgError("A has non-finite entries: the embedding is NaN/inf")
+    A = 0.5 * (A + A.T)
+    L, info = torch.linalg.cholesky_ex(A)
+    if int(info) != 0:
+        lam, V = torch.linalg.eigh(A)
+        A = (V * lam.clamp(min=1.0)) @ V.T
+        L = torch.linalg.cholesky(0.5 * (A + A.T))
+    return L
+
+
+def _inverse_sqrt_factor(L: torch.Tensor, inv: torch.Tensor) -> torch.Tensor:
+    """S with S @ S.T == inv(A), given A's Cholesky factor L and inv = inv(A).
+
+    The lower Cholesky factor of inv(A), as round 2 used, so draws from posteriors that
+    worked before are unchanged up to rounding. If inv(A) is too ill-conditioned to
+    factor, L^{-T} satisfies L^{-T} L^{-1} = inv(A) exactly -- same distribution.
+    """
+    S, info = torch.linalg.cholesky_ex(0.5 * (inv + inv.T))
+    if int(info) != 0:
+        eye = torch.eye(L.shape[0], dtype=L.dtype, device=L.device)
+        S = torch.linalg.solve_triangular(L.T, eye, upper=True)
+    return S
 
 POSTERIORS = ("gaussian", "gaussian_full", "mog2", "mog3")
 
@@ -177,7 +226,7 @@ class MixturePosterior:
     """K Bayesian linear regressions over one arm's reward, with a context gate.
 
     All components start from the ridge prior `A = I`, so `A` is invertible from the
-    first step and K=1 is exactly the published recursion.
+    first step and K=1 is the published recursion (accumulated in float64).
     """
 
     def __init__(self, dim: int, n_components: int = 1, alpha: float = 1.0,
@@ -213,8 +262,10 @@ class MixturePosterior:
         self.gate_scale = (1.0 / dim) if gate_scale is None else float(gate_scale)
 
         z = lambda *s: torch.zeros(*s, device=self.device)                # noqa: E731
-        self.A = [torch.eye(dim, device=self.device) for _ in range(self.K)]
-        self.b = [z(dim) for _ in range(self.K)]
+        self.A = [torch.eye(dim, dtype=_STAT_DTYPE, device=self.device)
+                  for _ in range(self.K)]
+        self.b = [torch.zeros(dim, dtype=_STAT_DTYPE, device=self.device)
+                  for _ in range(self.K)]
         self.n = [0.0 for _ in range(self.K)]
         self.m = [z(dim) for _ in range(self.K)]          # gate: mean of z
         self.v = [torch.ones(dim, device=self.device) for _ in range(self.K)]
@@ -232,17 +283,17 @@ class MixturePosterior:
     def _refresh(self):
         if not self._dirty:
             return
-        self._invA = [torch.linalg.inv(A) for A in self.A]
-        self._theta = [inv @ b for inv, b in zip(self._invA, self.b)]
+        # Solve in float64 (see `_STAT_DTYPE`), then hand float32 to everything that scores.
+        Ls = [_spd_cholesky(A) for A in self.A]
+        invs = [torch.cholesky_inverse(L) for L in Ls]
+        self._invA = [inv.float() for inv in invs]
+        self._theta = [(inv @ b).float() for inv, b in zip(invs, self.b)]
         if self.covariance == "diag":
-            self._scale = [self.alpha * torch.sqrt(torch.clamp(torch.diag(inv), min=0.0))
-                           for inv in self._invA]
+            self._scale = [(self.alpha * torch.sqrt(torch.clamp(torch.diag(inv), min=0.0)))
+                           .float() for inv in invs]
         else:
-            self._scale = []
-            for inv in self._invA:
-                sym = 0.5 * (inv + inv.T)
-                sym = sym + _EPS * torch.eye(self.d, device=self.device)
-                self._scale.append(self.alpha * torch.linalg.cholesky(sym))
+            self._scale = [(self.alpha * _inverse_sqrt_factor(L, inv)).float()
+                           for L, inv in zip(Ls, invs)]
         self._dirty = False
 
     def freeze(self):
@@ -322,8 +373,10 @@ class MixturePosterior:
                 break
         assign = np.abs(rs[:, None] - centres[None, :]).argmin(axis=1)
 
-        self.A = [torch.eye(self.d, device=self.device) for _ in range(self.K)]
-        self.b = [torch.zeros(self.d, device=self.device) for _ in range(self.K)]
+        self.A = [torch.eye(self.d, dtype=_STAT_DTYPE, device=self.device)
+                  for _ in range(self.K)]
+        self.b = [torch.zeros(self.d, dtype=_STAT_DTYPE, device=self.device)
+                  for _ in range(self.K)]
         self.n = [0.0] * self.K
         self.m = [torch.zeros(self.d, device=self.device) for _ in range(self.K)]
         self.v = [torch.ones(self.d, device=self.device) for _ in range(self.K)]
@@ -350,8 +403,9 @@ class MixturePosterior:
     def _accumulate(self, k: int, w: float, z: torch.Tensor, r: float):
         if w < 1e-8:
             return
-        self.A[k] = self.A[k] + w * torch.outer(z, z)
-        self.b[k] = self.b[k] + w * r * z
+        z64 = z.to(_STAT_DTYPE)
+        self.A[k] = self.A[k] + w * torch.outer(z64, z64)
+        self.b[k] = self.b[k] + w * r * z64
         prev, self.n[k] = self.n[k], self.n[k] + w
         lr = w / self.n[k]
         delta = z - self.m[k]
@@ -425,6 +479,8 @@ class MixturePosterior:
         n = int(R.numel())
         if n == 0:
             return self
+        Z64, R64 = Z.to(_STAT_DTYPE), R.to(_STAT_DTYPE)    # statistics only; see _STAT_DTYPE
+        eye64 = torch.eye(self.d, dtype=_STAT_DTYPE, device=self.device)
 
         def m_step(W):                      # W: (n, K) responsibilities
             for k in range(self.K):
@@ -432,8 +488,9 @@ class MixturePosterior:
                 nk = float(w.sum())
                 self.n[k] = nk
                 Zw = Z * w.unsqueeze(1)
-                self.A[k] = torch.eye(self.d, device=self.device) + Zw.T @ Z
-                self.b[k] = Zw.T @ R
+                Zw64 = Z64 * w.to(_STAT_DTYPE).unsqueeze(1)
+                self.A[k] = eye64 + Zw64.T @ Z64
+                self.b[k] = Zw64.T @ R64
                 if nk > _EPS:
                     self.m[k] = (Zw.sum(0) / nk)
                     self.v[k] = torch.clamp(
@@ -635,13 +692,30 @@ class _NeuralBanditX:
         return self
 
     def save(self, path):
-        torch.save({"arch": self.arch.__dict__, "net": self.net.state_dict(),
+        torch.save({"kind": self.base_name, "name": self.name,
+                    "arch": self.arch.__dict__, "net": self.net.state_dict(),
                     "As": [p.A for p in self.posteriors],
                     "bs": [p.b for p in self.posteriors],
                     "ns": [p.n for p in self.posteriors],
                     "ms": [p.m for p in self.posteriors],
                     "vs": [p.v for p in self.posteriors],
                     "s2s": [p.s2 for p in self.posteriors]}, str(path))
+
+    @classmethod
+    def load(cls, path, device=None):
+        """Inverse of `save`: the network and every posterior's statistics, frozen and
+        ready to evaluate. E6's bootstrap and E8's alpha sweep run on these instead of
+        retraining."""
+        ck = torch.load(str(path), map_location="cpu", weights_only=False)
+        arch = BanditArch(**ck["arch"])
+        pol = cls(arch=arch, device=device, name=ck.get("name"))
+        pol.net.load_state_dict(ck["net"])
+        for p, A, b, n, m, v, s2 in zip(pol.posteriors, ck["As"], ck["bs"], ck["ns"],
+                                        ck["ms"], ck["vs"], ck["s2s"]):
+            p.A, p.b, p.n, p.m, p.v, p.s2 = list(A), list(b), list(n), list(m), list(v), list(s2)
+            p._initialised, p._dirty = True, True
+            p._pending.clear()
+        return pol.eval_mode()
 
 
 class LinUCBX(_NeuralBanditX):
@@ -741,6 +815,15 @@ def train_bandit(
     policy._buffer = every
     policy.eval_mode()
     return policy, log
+
+
+def load_bandit(path, device=None):
+    """Load a LinUCBX / ThompsonX checkpoint written by `save`, whichever it is."""
+    kind = torch.load(str(path), map_location="cpu", weights_only=False).get("kind")
+    cls = {"LinUCB": LinUCBX, "Thompson Sampling": ThompsonX}.get(kind)
+    if cls is None:
+        raise ValueError(f"{path}: no bandit kind recorded (saved before round 3?)")
+    return cls.load(path, device=device)
 
 
 def fit_posteriors_from(policy, buffer, posterior: str):

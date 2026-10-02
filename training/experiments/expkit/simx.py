@@ -150,11 +150,15 @@ def run_x(
     collect: bool = False,
     human_skill_sd: float = 0.0,
     seed_global: bool = True,
+    bot_strength_range: tuple[int, int] = (0, 9),
 ) -> tuple[XSimResult, list[Transition]]:
     """One episode. Returns (result, transitions).
 
     `collect=True` records transitions for training; the state vector stored is whatever
     `policy.features(user, n_active)` returns, so a trainer can reuse it directly.
+    `bot_strength_range` is the inclusive range B_s is drawn from -- (0, 9) is the
+    published draw, and keeps the RNG stream identical to it; anything else is a drift
+    experiment (e.g. (5, 9), a solver upgrade).
     """
     rng = random.Random(seed)
     if seed_global and seed is not None:
@@ -175,7 +179,7 @@ def run_x(
         for _ in range(n_humans)
     ]
     users += [
-        User(session=rng.choice(bots), is_bot=True, bot_strength=rng.randint(0, 9),
+        User(session=rng.choice(bots), is_bot=True, bot_strength=rng.randint(*bot_strength_range),
              jitter=(rng.randint(-1, 1), rng.randint(-1, 1)))
         for _ in range(n_bots)
     ]

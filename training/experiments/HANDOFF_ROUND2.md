@@ -1,5 +1,8 @@
 # Round 2 — addendum to `HANDOFF_GPU_EXPERIMENTS.md`
 
+> **Superseded by `HANDOFF_ROUND3.md` (fold 2 only) for anything that runs next.** Kept as
+> the record of round 2's design; its E2–E8 specs are still referenced from round 3 §5.
+
 Read this **together with** `HANDOFF_GPU_EXPERIMENTS.md`. That document's science is
 unchanged. This one records what round 1 (Slurm job 1263, 2026-09-28, 1095 min) actually
 executed, the defects it exposed, the design changes since, and the exact queue for
@@ -12,7 +15,7 @@ round 2.
 | §3 — one fixed `partition.json` (73/31/52) | §3.1 — a 3-fold **rotation**; 31 RL recordings is what starved the agent |
 | §4.2 — load `results/final_scorer/` | §3.2 — carry the **config**, refit weights and `T` **per fold** |
 | §4.3 — Phase 0 cross-validated over all 156 | §6 Priority 0 — per fold on `scorer ∪ rl`; the eval block never picks the config |
-| §4.4 — scorer trained on the `lstm` pool | §3.2 — on **this fold's** scorer block |
+| §4.4 — scorer trained on the `lstm` pool | §3.2 — on **this fold's `scorer + rl` blocks** (the eval block stays unseen) |
 | §7 — `preflight` shown as illustrative asserts | §4 — `preflight.py`, real and importable |
 | §9 — leave-one-campaign-out ≈ an unseen participant | §3.1 — **same three participants**; it is a temporal holdout, nothing more |
 | E9 as a separate experiment | §6 Priority 1 — subsumed; the bandits are retrained by construction |
@@ -32,7 +35,7 @@ still holds.
 | `expkit/trainer.py` | `QNet(hidden=...)` and `TrainableDQN(hidden=..., lr=...)` for the depth/width search |
 | `expkit/simx.py` | `verify_against_published()` — the 144/144 assertion, lifted out of `nb_06` so it can run in preflight |
 | **`exp_scorer_phase0.py`** | **Phase 0 runner** — per fold, chunk operating point, 5 seeds, the fixed selection rule, the P0.6 audit |
-| **`exp_policy_arch_search.py`** | the policy + posterior search, its selection rule, and eight smoke tests |
+| **`exp_policy_arch_search.py`** | the policy + posterior search, its selection rule, and nine smoke tests |
 | **`preflight.py`** | the gates, importable: `import preflight; preflight.check()` |
 | **`slurm/`** | `phase0.sh`, `prepare_scorers.sh`, `arch_search.sh` + a README with the run order and the measured budget |
 | `summarise_results.py` | **fixed**: the zero-bot cell no longer leaks into headline means (see §1.1) |
@@ -244,8 +247,8 @@ run them as three array tasks and the wall-clock is unchanged.
 ### 3.2 The scorer is refit per fold — do **not** load `final_scorer/`
 
 `results/final_scorer/` was fitted on the **old** `lstm` pool. Under the rotation those
-recordings land in the new policy and evaluation blocks, which is exactly the leak E2
-measured at +8.7 DI. Carry forward the finalised **config**, not the weights:
+recordings land in the new evaluation block, which is exactly the leak E2 measured at
++8.7 DI. Carry forward the finalised **config**, not the weights:
 
 ```python
 ScorerConfig(representation="kinematic", padding="mask", context=32,
@@ -253,9 +256,57 @@ ScorerConfig(representation="kinematic", padding="mask", context=32,
              augmentation="none")
 ```
 
-Refit weights **and temperature** on each fold's scorer block
-(`exp_policy_arch_search.fold_scorer` does this, and asserts the scorer never saw the
-policy or evaluation blocks). `T = 1.376` was a property of the old fit; do not assert it.
+Refit weights **and temperature** per fold on that fold's **`scorer + rl` blocks**
+(`exp_policy_arch_search.fold_scorer` does this). `T = 1.376` was a property of the old
+fit; do not assert it.
+
+#### Why `scorer + rl`, not `scorer` alone — corrected after round 2
+
+On `fold.scorer` alone the fit is **unstable**, not impossible. The 25 % validation split
+is ~13 recordings, and early stopping (patience 15, `restore_best_weights`) on a set that
+small depends on which recordings land in it. When validation loss never beats epoch 1,
+early stopping restores the **epoch-1 weights** — an effectively untrained network — and
+nothing raises an error. Measured on fold 0, evaluating on the unseen block:
+
+| scorer pool | seed | val windows | best epoch | eval AUC |
+|---|---|---|---|---|
+| `fold.scorer` | 0 | 89 | **1** | **0.70** — collapsed; this is round 2's fold-0 scorer |
+| `fold.scorer` | 1 | 142 | 30 | 0.93 |
+| `fold.scorer` | 2 | 131 | 5 | 0.80 — partial collapse |
+| `fold.scorer + fold.rl` | 0 | 288 | 26 | **0.95** |
+| `fold.scorer + fold.rl` | 1 | — | — | 0.97 |
+
+`scorer + rl` held **0.95–0.98 on all three folds at two seeds each**. Round 2's cluster
+scorers were scorer-only (confirmed: their saved standardiser statistics match a
+scorer-only fit exactly) and scored 0.70 / 0.95 / 0.92 on folds 0 / 1 / 2.
+
+The collapsed fit puts every recording in the band 0.41–0.64 (human 0.504 vs bot 0.518).
+That destroys every fixed threshold downstream: `SingleThresholdPolicy` sends anything
+scoring above 0.5 straight to threat 10, where abandonment is certain, so it kept
+**0 %** of humans. Any table built on such a scorer is measuring the scorer's failure, not
+the policies — in round 2 that was fold 0 of the headline and, by the same fingerprint,
+every one of E2–E8.
+
+**Stale caches.** `fold_scorer_cached` used to reuse any `results/fold{i}_scorer/` it
+found, so pulling this fix alone would have changed nothing: every task would have
+reloaded the collapsed round-2 scorer. Cached scorers now carry a provenance record (pool,
+fold, seed, exact train/val recordings). One without it, or with a mismatch, **fails the
+array task**; `--prepare` refits and overwrites it. Delete round 2's
+`results/fold{0,1,2}_scorer/` anyway, and make sure anything that loads a fold scorer
+directly (not through `fold_scorer_cached`) is not reading them.
+
+**This is not the leak E2 measured.** That leak was the agent training on the recordings
+it was *evaluated* on, and it flowed into the evaluation number. The invariant that
+matters still holds exactly:
+
+> the **evaluation block is unseen** by the scorer *and* by the policy.
+
+It also matches deployment — a scorer is fitted on historical traffic and the policy then
+learns against that scorer's outputs over the same period — and it makes the fold scorer
+consistent with Phase 0, which already cross-validates within `scorer + rl`.
+
+`preflight.check_scorer` asserts only that the scorer never saw `fold.eval`. Do **not**
+reinstate an assertion against `fold.rl`; it would reintroduce the unstable scorer.
 
 ### 3.3 Architecture and posterior selection happens on `rl_val`, never on `eval`
 
@@ -268,6 +319,12 @@ held-out third; the winner is retrained on the full policy block and evaluated o
 1. Primary: mean DI over evaluation seeds, **zero-bot cells excluded**.
 2. Among candidates within 1 SE of the best: **fewest parameters**.
 3. Ties broken by name, for determinism.
+
+Since round 2 the search also records **`friction_s`, `human_survival` and
+`bot_survival`** per run, and `--collect` adds their per-candidate means to each
+`policy_arch_*_fold*.csv`. Round 2 recorded DI only, so it could say nothing about
+friction — including the MoG posterior's friction advantage seen locally. These columns
+are **reported, not selected on**: the rule above was fixed before running.
 
 ### 3.4 Thompson Sampling: a mixture-of-Gaussians posterior
 
@@ -299,7 +356,8 @@ buffer**, so the posterior is the only variable and the three extra variants cos
 nothing.
 
 **Asserted in `smoke_tests`, and passing:** at K=1 the mixture reproduces the published
-Gaussian Thompson draw **bit-exactly** under the same seed (`|Δ| < 1e-9`); the gate is
+Gaussian Thompson draw under the same seed and RNG stream, to float32 rounding
+(`|Δ| < 1e-5`; bit-exact before the statistics moved to float64, §3.9); the gate is
 verifiably context-dependent at K=2; and batch EM fits a two-regime reward (K=1 MSE 13.8 →
 K=2 0.08).
 
@@ -378,11 +436,12 @@ takes **one** network step on the batch mean. Same objective, better-conditioned
 measured **0.36 ms per sample — 7.3x faster**. A second change, using the last inverted
 `theta` for the residual instead of forcing a 64x64 inversion per observation, took the
 posterior update from 0.29 ms to 0.036 ms. Neither touches `A`, `b` or the sampled
-`theta`, so the K=1 bit-exact equivalence still holds — the smoke test asserts it after
+`theta`, so the K=1 equivalence still holds — the smoke test asserts it after
 both changes.
 
 **State this deviation in the paper.** `policy.update(state, action, reward)` still exists
-and reproduces the published trajectory exactly, item by item, if a reviewer asks.
+and reproduces the published trajectory item by item, to float32 rounding (§3.9), if a
+reviewer asks.
 
 If the search is still too slow, raise `train_every` (currently 5, a 12.8x replay ratio)
 before touching anything else — that is a budget knob, not a design change.
@@ -429,6 +488,33 @@ records `cross_fold_agreement`. Report the agreement: unanimous across folds is 
 claim about the architecture; disagreement means the choice does not matter much, which is
 also worth saying.
 
+### 3.9 Bandit posterior statistics are float64 — fixed after round 2
+
+11 of 225 round-2 search tasks died with `linalg.cholesky: ... not positive-definite`, all
+Thompson on the deep feature nets (`h128_64_e64`, `h256_128_e128`; 8 in fold 0, 3 in
+fold 2). The crash killed the whole task, so the `gaussian`, `mog2` and `mog3` rows for
+those cells were lost with it.
+
+The crash was the visible symptom of a wider fault. `A = I + ΣzzT` was accumulated in
+float32; with dead or redundant embedding units its eigenvalues run from 1 to ~1e10, and
+float32 rounding at 1e10 (~1e3) had already erased the `I +` that makes it
+positive-definite. **Every** posterior reads that `A`. On synthetic `A`s at that
+conditioning (cond 1e10–1e12), the float32 posterior mean's predictions correlated between
+**−0.20 and +0.71** with the exact solve, and over a third of the diagonal variances were
+silently clamped to zero — only `gaussian_full` failed loudly.
+
+`bandits_x` now keeps `A` and `b` in float64, solves through a Cholesky factor (projecting
+back onto eigenvalues ≥ 1 if rounding ever breaks positive-definiteness), and casts θ, the
+sampling scale and `inv(A)` to float32. Well-conditioned posteriors are unchanged to float32
+rounding, including the K=1 published-equivalence smoke test; smoke test 3b reproduces
+the crash regime and fails on the round-2 code. `run_task` also catches a posterior's
+`LinAlgError` so one posterior can no longer take the others with it, and `--collect`
+warns about any (fold, candidate) cell short of training seeds.
+
+Consequence for reading round 2: **the deep bandit architectures' poor search scores may be
+partly numerical**, not a capacity result. Re-run them before concluding that depth hurts
+the bandits.
+
 ---
 
 ## 4. Hard gates — assert these in code, fail the job if they trip
@@ -440,6 +526,8 @@ import preflight
 preflight.check()                                   # every script, first line of work
 
 preflight.check_scorer(scorer, fold, train_refs, val_refs)
+preflight.check_scorer_health(scorer)              # best epoch > 1, val AUC >= 0.85
+preflight.check_threshold_canary(cache, humans, bots)   # policy-block pool, NEVER eval
 preflight.check_batched_scoring(scorer, chunks)
 preflight.check_rotation(folds)
 preflight.check_determinism()                       # the 144/144 assertion
@@ -451,7 +539,9 @@ df = preflight.headline(runs)                       # drops bots == 0
 | gate | what it caught in round 1 |
 |---|---|
 | `check_no_round1_scorer_choice` | the whole RL chain ran against the wrong scorer |
-| `check_scorer` | config identity, and that the scorer never saw this fold's rl/eval blocks |
+| `check_scorer` | config identity, and that the scorer never saw this fold's eval block |
+| `check_scorer_health` | **round 2**: fold 0's scorer restored its epoch-1 weights (val loss 0.692 = chance, val AUC 0.62) and saved without error. Fails if the best epoch is 1 or validation AUC < 0.85 — healthy fits sit at 0.95–0.98 |
+| `check_threshold_canary` | **round 2**: the same scorer made Static Single keep 0 % of humans. Fails if it keeps < 50 % on a policy-block pool (healthy: ~80–100 %) |
 | `check_batched_scoring` | the RL loop only uses `score_chunks`; if it disagrees with `score_chunk` every cached score is wrong and nothing downstream reveals it |
 | `check_rotation` | disjoint roles, every recording evaluated exactly once |
 | `check_determinism` | 144/144 — licenses "continuous deformation of the published environment" rather than "a different environment" |
@@ -461,6 +551,15 @@ df = preflight.headline(runs)                       # drops bots == 0
 
 `check_scorer` deliberately does **not** assert on the temperature. `T = 1.376` belonged
 to the old 73-recording `lstm` pool; weights and temperature are refit per fold.
+
+`fold_scorer` and `fold_scorer_cached` call `check_scorer_health` themselves, and every
+`exp_policy_arch_search` task and `--prepare` runs the canary. **Any script you wrote for
+round 2** (`exp_headline_table.py`, `exp_e*_*.py`) must get its fold scorers through
+`fold_scorer_cached` and call both gates — none of those scripts is in the repo, so none
+of this can be checked from here. Commit them.
+
+If a gate trips, **stop and report**; do not reseed until it passes. A gate that is retried
+until it passes is a selection step.
 
 Also enforced by the driver rather than in Python:
 

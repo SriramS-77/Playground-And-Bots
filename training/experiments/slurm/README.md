@@ -1,4 +1,12 @@
-# Slurm drivers for round 2
+# Slurm drivers
+
+**Round 3 (current): fold 2 only — `r3_prepare.sh`, `r3_search.sh`, `r3_headline.sh`, and
+`r3_e.sh <e2|e3|e4|e6|e7|e8>` for the experiment arrays in `round3/`.** The run order is
+`HANDOFF_ROUND3.md` §2 and §5. The round-2 scripts below (`prepare_scorers.sh`,
+`arch_search.sh`, `phase0.sh`) are kept for the record; do not run them in round 3 — they
+fit scorer-only fold scorers into `results/fold*_scorer/`, the design that collapsed.
+
+## Round 2
 
 Every workload here is small and single-threaded — a 6,081-parameter LSTM, a ≤256-wide
 MLP, and a pure-Python simulation loop. **A GPU buys almost nothing per run; throughput
@@ -36,6 +44,12 @@ python exp_policy_arch_search.py --collect
 Step 2 is **not** optional and must not be folded into the tasks. Every candidate has to
 be ranked against the same scorer; if each task refits its own, TF/oneDNN nondeterminism
 gives slightly different weights and the comparison is against different yardsticks.
+
+Step 2 also **replaces round 2's cached scorers**. Those were fitted on `fold.scorer` alone
+and fold 0's collapsed (eval AUC 0.70). They carry no provenance record, so an array task
+that finds one fails with "is stale", and `--prepare` refits it. Check the prepare log for
+three `preflight/scorer: val AUC ...` and three `preflight/canary: ...` lines before
+launching step 3; a scorer "ready" in a few seconds means it was loaded, not fitted.
 
 ## Budget
 

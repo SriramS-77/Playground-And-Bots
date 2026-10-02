@@ -66,6 +66,12 @@ class ScorerConfig:
     context: int = CONTEXT
     epochs: int = 120
     patience: int = 15
+    # Early stopping neither monitors nor tracks the best epoch before this one. 0 keeps
+    # round 1-2 behaviour. Without it, a fit whose learning starts late (median best epoch
+    # 35 across 30 cross-fitted fits; 9 of 30 peaked at >= 45) is killed after 15 flat
+    # epochs and restores near-initial weights: 1 of 30 fits collapsed that way (val AUC
+    # 0.62), 0 of 30 with 30 here.
+    start_from_epoch: int = 0
     class_balance: str = "window"        # "window" | "family"
     augmentation: str = "none"
     n_copies: int = 1
@@ -245,6 +251,10 @@ class HumanityScorer:
         self.model = model
         self.std = std
         self.temperature = float(temperature)
+        # How the fit went, and what it was fitted on. Both are persisted by `save`, so a
+        # cached scorer can be checked without refitting it -- see `preflight`.
+        self.training_summary: dict | None = None
+        self.provenance: dict | None = None
 
     # -- training -------------------------------------------------------- #
     def fit(self, train_refs, val_refs, seed: int = 0, verbose: int = 0):
@@ -261,17 +271,38 @@ class HumanityScorer:
         self.model.compile(optimizer=Adam(self.cfg.lr), loss="bce", metrics=["accuracy"])
 
         sw = _sample_weights(tr, self.cfg.class_balance)
+        es_kw = {"start_from_epoch": self.cfg.start_from_epoch} if self.cfg.start_from_epoch else {}
         self.history = self.model.fit(
             self.std(tr.X), tr.y, sample_weight=sw,
             validation_data=(self.std(va.X), va.y),
             epochs=self.cfg.epochs, batch_size=self.cfg.batch_size, verbose=verbose,
             callbacks=[EarlyStopping(monitor="val_loss", patience=self.cfg.patience,
-                                     restore_best_weights=True)])
+                                     restore_best_weights=True, **es_kw)])
 
         # Temperature is fitted at the operating point, on held-out data.
-        from .calibration import fit_temperature
+        from .calibration import fit_temperature, roc_auc
         pv = self.model.predict(self.std(va.X), batch_size=1024, verbose=0).ravel()
         self.temperature = float(fit_temperature(pv, va.y))
+
+        # Early stopping restores the best epoch. If that is epoch 1, the "trained" scorer
+        # is the initialisation: round 2's fold-0 scorer stopped exactly there, with raw
+        # outputs in 0.41-0.64 for everyone, and nothing downstream raised an error.
+        # Keras restores the best epoch AMONG MONITORED ones -- those from start_from_epoch
+        # on -- so take the argmin over that window, or best_epoch would name an earlier
+        # epoch whose weights are not the ones in the model.
+        val_loss = [float(v) for v in self.history.history["val_loss"]]
+        start = min(self.cfg.start_from_epoch, len(val_loss) - 1)
+        best = start + int(np.argmin(val_loss[start:]))
+        self.training_summary = {
+            "epochs_run": len(val_loss),
+            "start_from_epoch": int(self.cfg.start_from_epoch),
+            "best_epoch": best + 1,
+            "val_loss_first": val_loss[0],
+            "val_loss_best": val_loss[best],
+            "val_auc": roc_auc(pv, va.y),
+            "n_train_windows": int(len(tr.y)),
+            "n_val_windows": int(len(va.y)),
+        }
         return self
 
     # -- scoring --------------------------------------------------------- #
@@ -321,7 +352,9 @@ class HumanityScorer:
         (d / "scorer.json").write_text(json.dumps({
             "config": asdict(self.cfg), "temperature": self.temperature,
             "standardiser": self.std.to_dict(),
-            "params": int(self.model.count_params())}, indent=2))
+            "params": int(self.model.count_params()),
+            "training": self.training_summary,
+            "provenance": self.provenance}, indent=2))
         return d
 
     @classmethod
@@ -331,9 +364,14 @@ class HumanityScorer:
         meta = json.loads((d / "scorer.json").read_text())
         cfg = ScorerConfig(**{k: (tuple(v) if isinstance(v, list) else v)
                               for k, v in meta["config"].items()})
-        return cls(cfg, tf.keras.models.load_model(str(d / "model.keras")),
-                   Standardiser.from_dict(meta["standardiser"]),
-                   meta.get("temperature", 1.0))
+        scorer = cls(cfg, tf.keras.models.load_model(str(d / "model.keras")),
+                     Standardiser.from_dict(meta["standardiser"]),
+                     meta.get("temperature", 1.0))
+        # Absent in anything saved before round 3 -- including round 2's cached fold
+        # scorers, which is exactly how a stale cache is recognised.
+        scorer.training_summary = meta.get("training")
+        scorer.provenance = meta.get("provenance")
+        return scorer
 
 
 def _no_aug(cfg: ScorerConfig) -> ScorerConfig:

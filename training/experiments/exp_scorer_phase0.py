@@ -133,9 +133,11 @@ def cfg_tag(cfg: ScorerConfig) -> str:
     dense = "-".join(map(str, cfg.dense_units))
     aug = cfg.augmentation if cfg.augmentation == "none" else \
         f"{cfg.augmentation}{cfg.magnitude if cfg.augmentation != 'gaussian' else cfg.sigma}x{cfg.n_copies}"
+    # `_sfe` only when set, so every round-2 tag (and its CSV) keeps its identity.
+    sfe = f"_sfe{cfg.start_from_epoch}" if getattr(cfg, "start_from_epoch", 0) else ""
     return (f"{cfg.representation}_{cfg.padding}_c{cfg.context}_l{lstm}_d{dense}"
             f"_lr{cfg.lr:g}_do{cfg.dropout:g}_rd{cfg.recurrent_dropout:g}"
-            f"_{cfg.class_balance}_{aug}")
+            f"_{cfg.class_balance}_{aug}{sfe}")
 
 
 # --------------------------------------------------------------------------- #

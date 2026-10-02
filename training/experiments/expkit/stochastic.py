@@ -22,8 +22,9 @@ Anchored on two large studies:
 BOT SIDE -- a two-parameter logistic (IRT) solve model
 ------------------------------------------------------
 ``P(bot solves level T) = sigma(alpha * (theta(B_s) - d(T)))`` with ``theta(B_s) =
-B_s + 0.5`` and ``d(T) = T``. This is the 2PL item-response model: bot strength is
-latent ability, challenge level is item difficulty, ``alpha`` is discrimination.
+B_s + 0.5`` and ``d(T) = T``, for ``T >= 1``. This is the 2PL item-response model: bot
+strength is latent ability, challenge level is item difficulty, ``alpha`` is
+discrimination. Level 0 presents nothing, so every bot passes it with certainty.
 
 The published deterministic rule is the ``alpha -> inf`` limit of exactly this model,
 because ``theta > d`` iff ``B_s + 0.5 > T`` iff ``B_s >= T`` for integers. So
@@ -36,6 +37,20 @@ challenges far more easily than interactive or behavioural ones: YOLO-based solv
 a generalised agentic VLM solver manages 60.7% across 26 CAPTCHA types and 70.6% on
 unseen challenges in the wild (Teoh et al., USENIX Security 2025). Default is off, so the
 deterministic limit is preserved unless you ask for it.
+
+BOT SIDE -- time spent per attempt
+----------------------------------
+Bots spend measured solve times (`BOT_SECONDS`, automated solvers; `SERVICE_BOT_SECONDS`
+for human-powered solving services), lognormal around the median with log-sd 0.5. Until
+round 3 they spent 0 s, so the observed time revealed the class perfectly: any challenge
+answered in more than 0 s was a human's, and the proxy reward charged bots no friction --
+paying a leaked bot MORE than a satisfied human. The oracle reward is unchanged: a bot's
+time is not a usability cost, so it never enters `stochastic_reward`'s bot branch.
+
+Humans still spend exactly the median per attempt (s_T, or 2 s_T after a retry). Against
+continuous bot times an exact-value match on seconds would identify every human; nothing
+in the pipeline does that (the proxy reward is linear in seconds, the learned reward model
+is a linear logistic, the DQN state has no seconds), but a human-side spread would close it.
 """
 
 from __future__ import annotations
@@ -67,6 +82,49 @@ HUMAN_PASS = (1.000, 0.999, 0.995, 0.980, 0.980, 0.930, 0.860, 0.750, 0.700, 0.6
 #: Median seconds of friction added, per level.
 HUMAN_SECONDS = (0.0, 0.0, 0.5, 3.7, 6.8, 7.3, 9.7, 11.9, 13.0, 25.0, 30.0)
 
+#: Median seconds a BOT spends on one attempt, per level, whether it then passes or fails
+#: (Motoyama et al., USENIX Security 2010, found no time difference between correct and
+#: incorrect answers). Attacker regime: AUTOMATED SOLVERS. Evidence per entry:
+#:   L0   0     nothing is shown
+#:   L1   0     passive score, nothing to interact with                          assumption
+#:   L2   0.5   JS / honeypot runs in the bot's browser as in a human's          assumption
+#:   L3   1.4   checkbox -- Sivakorn et al., EuroS&P 2016, ~2,500 solves/hour     low confidence:
+#:              inverted throughput, not per-solve latency
+#:   L4   1.0   easy text -- Motoyama et al. 2010 s3.1, Xrumer "a second or less"  measured
+#:   L5   1.0   standard text -- modern-GPU assumption: Ye et al., CCS 2018, <50 ms
+#:              inference only. The one end-to-end measurement, Gao et al., NDSS 2016
+#:              (CPU era), is 2.8-13.2 s
+#:   L6  14.9   image grid -- Hossen et al., RAID 2020 s5.3, reCAPTCHA v2, MEDIAN     measured
+#:              (mean 19.9 s); HUMAN_SECONDS are medians too
+#:   L7   7.0   hard text -- Motoyama s3.1, Xrumer on noisy phpBB, 6-7 s          measured
+#:              (Gao et al.: 8.1 s on an older reCAPTCHA)
+#:   L8  14.0   multi-round -- two rounds of L7                                  assumption
+#:   L9  21.8   interactive -- Teoh et al., USENIX Security 2025, agentic VLM     measured, but
+#:              solver, median over 26 challenge types incl. Arkose; sliders alone take
+#:              2-5 s (Weng et al., Big Data Mining & Analytics 2019, Table 7)    not game-specific
+#:   L10  5.4   audio -- Bock et al., WOOT 2017 s5.5, unCaptcha, MEAN (sd 1.25)    measured
+#: Against these medians bots are much FASTER than humans at text and SLOWER at images,
+#: so time is informative about class -- as it is in deployment -- but not decisive.
+BOT_SECONDS = (0.0, 0.0, 0.5, 1.4, 1.0, 1.0, 14.9, 7.0, 14.0, 21.8, 5.4)
+
+#: The alternative attacker regime, HUMAN-POWERED SOLVING SERVICES. Not used by default;
+#: pass ``bot_seconds=SERVICE_BOT_SECONDS``. It flips the sign of the time signal on text.
+#:   L4, L5, L7  14 s  -- Motoyama s5.6: median over 8 services (Q3 20 s, lognormal)  measured
+#:   L6        73.1 s  -- Hossen et al. 2020 Table 9: 2Captcha mean on reCAPTCHA v2,  measured
+#:                        the fastest of 5 services (73-131 s). Weng et al. 2019 report
+#:                        4.3 s for the same service -- an unresolved conflict
+#:   L8          28 s  -- two rounds of L7                                          assumption
+#:   L9         9.7 s  -- Weng Table 7: GeeTest slider via hyocr (range 8.8-11.0 s)   measured
+#:   L10         14 s  -- as text                                                   assumption
+#:   L0-L3             -- as BOT_SECONDS: these need no human solver               assumption
+SERVICE_BOT_SECONDS = (0.0, 0.0, 0.5, 1.4, 14.0, 14.0, 73.1, 14.0, 28.0, 9.7, 14.0)
+
+#: Log-scale spread of a bot's time around the median. Motoyama's service latencies give
+#: ln(Q3/median) / 0.674 = ln(20/14) / 0.674 = 0.53; Hossen's automated image solver gives
+#: ln(p95/median) / 1.645 = ln(39.8/14.9) / 1.645 = 0.60; Bock's audio solver is narrower
+#: (sd/mean 0.23). 0.5 sits between them.
+BOT_SECONDS_SIGMA = 0.5
+
 #: Optional per-level bonus to bot ability: legacy visual challenges are the ones
 #: modern solvers have broken. Positive = easier for a bot than its level implies.
 SOLVER_ERA_SHIFT = (0.0, 0.0, 0.2, 0.5, 1.5, 1.5, 1.2, 1.0, 0.6, 0.1, 0.0)
@@ -83,9 +141,29 @@ class SolveModel:
     solver_era: float = 0.0                # weight on SOLVER_ERA_SHIFT
     max_human_attempts: int = 2            # retries before a human is blocked
     human_skill_sd: float = 0.0            # per-user variation in pass probability (logit sd)
+    bot_seconds: tuple = BOT_SECONDS       # median seconds per bot attempt
+    bot_seconds_sigma: float = BOT_SECONDS_SIGMA   # lognormal spread; 0 = the median, no draw
+
+    def bot_seconds_spent(self, threat: int, rng: random.Random) -> float:
+        """Seconds a bot spends on one attempt at `threat`.
+
+        Draws from `rng` only when there is something to draw: the median is positive and
+        the spread is non-zero. The deterministic models set the spread to 0, so the
+        published loop's RNG stream -- and the 144/144 reproduction -- is untouched.
+        """
+        median = self.bot_seconds[threat]
+        if median <= 0.0 or self.bot_seconds_sigma <= 0.0:
+            return median
+        return median * rng.lognormvariate(0.0, self.bot_seconds_sigma)
 
     def bot_pass_probability(self, bot_strength: int, threat: int) -> float:
         """P(bot gets through when shown `threat`)."""
+        if threat == 0:
+            # Level 0 shows nothing, so nothing can be failed. The logistic alone gives
+            # sigma(alpha * 0.5) = 0.68 for B_s = 0 at alpha 1.5: "no challenge" blocked
+            # 32 % of the weakest bots per step and ~20 % of all bots over 12 steps of
+            # never challenging. The deterministic rule already passes everyone here.
+            return 1.0
         if self.deterministic:
             return 0.0 if threat > bot_strength else 1.0
         theta = bot_strength + 0.5 + self.solver_era * SOLVER_ERA_SHIFT[threat]
@@ -127,6 +205,7 @@ class SolveModel:
             "Mechanism": LEVEL_MECHANISM,
             "P(human passes)": self.human_pass,
             "Median seconds": self.human_seconds,
+            "Bot median seconds": self.bot_seconds,
             "P(bot B_s=2 passes)": [round(self.bot_pass_probability(2, t), 3) for t in range(N_LEVELS)],
             "P(bot B_s=5 passes)": [round(self.bot_pass_probability(5, t), 3) for t in range(N_LEVELS)],
             "P(bot B_s=9 passes)": [round(self.bot_pass_probability(9, t), 3) for t in range(N_LEVELS)],
@@ -134,12 +213,14 @@ class SolveModel:
 
 
 #: The published environment: bots blocked iff T > B_s, and humans ALWAYS complete the
-#: challenge -- the manuscript has no notion of a legitimate user failing one.
-DETERMINISTIC = SolveModel(deterministic=True, human_pass=(1.0,) * N_LEVELS)
+#: challenge -- the manuscript has no notion of a legitimate user failing one. Bot time is
+#: the median with no spread: a draw would shift the published loop's RNG stream.
+DETERMINISTIC = SolveModel(deterministic=True, human_pass=(1.0,) * N_LEVELS,
+                           bot_seconds_sigma=0.0)
 
 #: Deterministic bots, but humans fail at the measured rates. Isolates the effect of
 #: false positives alone, without changing anything on the bot side.
-DETERMINISTIC_FALLIBLE_HUMANS = SolveModel(deterministic=True)
+DETERMINISTIC_FALLIBLE_HUMANS = SolveModel(deterministic=True, bot_seconds_sigma=0.0)
 
 GROUNDED = SolveModel(alpha=1.5)
 GROUNDED_MODERN = SolveModel(alpha=1.5, solver_era=1.0)
@@ -223,6 +304,9 @@ def stochastic_reward(user, threat: int, solve: SolveModel,
             user.end_session()
             info["outcome"] = "bot_blocked"
             terminated = True
+        # Time spent on the attempt, passed or failed. Observable, so it reaches the proxy
+        # reward; never part of this (oracle) reward -- a bot's time is not a usability cost.
+        info["seconds"] = solve.bot_seconds_spent(threat, rng)
 
         if cfg.abandonment_applies_to_bots:
             # Drawn even when the bot was already blocked: the published bandit loops

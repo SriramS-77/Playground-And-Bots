@@ -88,8 +88,79 @@ def check_scorer(scorer, fold=None, train_refs=None, val_refs=None):
         seen = {r.name for r in train_refs}
         if val_refs is not None:
             seen |= {r.name for r in val_refs}
-        assert not (seen & {r.name for r in fold.rl}), "scorer saw the policy block"
+        # The invariant is that the EVALUATION block is unseen -- by the scorer and by the
+        # policy. The scorer is deliberately fitted on `scorer + rl` (~102 recordings):
+        # on `fold.scorer` alone early stopping runs on a ~13-recording validation split
+        # and is unstable. See `exp_policy_arch_search.fold_scorer`.
         assert not (seen & {r.name for r in fold.eval}), "scorer saw the evaluation block"
+
+
+#: A healthy fold scorer sits at 0.95-0.98 on its own validation split. The two collapsed
+#: fits measured on fold 0 (scorer-only pool) sat at 0.62 and 0.65.
+MIN_SCORER_VAL_AUC = 0.85
+
+
+def check_scorer_health(scorer, val_refs=None, min_val_auc: float = MIN_SCORER_VAL_AUC):
+    """Fail on a scorer that trained and saved without error but learned nothing.
+
+    Round 2's fold-0 scorer did exactly that: validation loss never beat epoch 1, early
+    stopping restored the epoch-1 weights, and every recording scored 0.41-0.64. Nothing
+    raised; every table built on it was measuring the scorer's failure.
+
+    Uses the training record `HumanityScorer.fit` persists. For a scorer without one, pass
+    `val_refs` and the validation AUC is recomputed. Never pass `fold.eval` here -- a gate
+    that can reject a scorer is a selection step, and the evaluation block takes no part
+    in selection.
+    """
+    summary = getattr(scorer, "training_summary", None)
+    if summary:
+        # The epoch check only means something without `start_from_epoch` -- with it, the
+        # best epoch is >= start by construction. It is a secondary check either way: a
+        # cross-fitted fit collapsed with best epoch 2 (val AUC 0.616), which it would have
+        # passed. Validation AUC is the gate that caught it.
+        if not summary.get("start_from_epoch"):
+            assert summary["best_epoch"] > 1, (
+                f"scorer: early stopping restored epoch {summary['best_epoch']} of "
+                f"{summary['epochs_run']} (val loss {summary['val_loss_best']:.3f}; chance "
+                f"is 0.693) -- the network is effectively untrained")
+        auc = summary["val_auc"]
+    elif val_refs is not None:
+        from expkit.calibration import roc_auc
+        from expkit.humanity_scorer import _no_aug, build_chunk_dataset
+        va = build_chunk_dataset(list(val_refs), _no_aug(scorer.cfg), dedup=True)
+        p = scorer.model.predict(scorer.std(va.X), batch_size=1024, verbose=0).ravel()
+        auc = roc_auc(p, va.y)
+    else:
+        raise ValueError("check_scorer_health needs the scorer's training record or "
+                         "val_refs to recompute it")
+    assert auc >= min_val_auc, (
+        f"scorer: validation AUC {auc:.3f} < {min_val_auc} -- collapsed or near-collapsed "
+        f"fit. Do not run anything on it; report it.")
+    print(f"preflight/scorer: val AUC {auc:.3f}"
+          + (f", best epoch {summary['best_epoch']}/{summary['epochs_run']}" if summary else ""))
+    return auc
+
+
+def check_threshold_canary(scorer_cache, humans, bots, min_human_survival: float = 0.5):
+    """Downstream check: Static Single-Threshold must keep at least half the humans.
+
+    It sends any user whose chunk scores above 0.5 straight to level 10, so it is the most
+    scorer-sensitive policy there is: 0 % of humans on round 2's collapsed fold 0 versus
+    ~80 % on a healthy scorer. Run it on a policy-block pool, never on `fold.eval`.
+    """
+    from rlcaptcha.policies.static import SingleThresholdPolicy
+    from expkit.simx import run_x
+    from expkit.stochastic import DETERMINISTIC, PAPER_EQUIVALENT
+
+    res, _ = run_x(SingleThresholdPolicy(), humans, bots, 100, cache=scorer_cache,
+                   n_humans=100, seed=0, solve=DETERMINISTIC, cfg=PAPER_EQUIVALENT)
+    kept = res.surviving_humans / 100
+    assert kept >= min_human_survival, (
+        f"canary: Static Single-Threshold kept {kept:.0%} of humans (< "
+        f"{min_human_survival:.0%}). The scorer is scoring humans as bots; every "
+        f"threshold policy and every learned policy downstream would inherit it.")
+    print(f"preflight/canary: Static Single-Threshold kept {kept:.0%} of humans")
+    return kept
 
 
 def check_batched_scoring(scorer, chunks, tol: float = 1e-6):

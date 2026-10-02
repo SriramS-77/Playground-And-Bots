@@ -20,9 +20,13 @@ Crucially, the immediate observation is *ambiguous about class*:
     challenge failed, session ends   <- a blocked bot AND a false-positived human
     challenge passed, session goes on <- a leaked bot AND a satisfied human
 
-These pairs are indistinguishable at the time. ``relabel`` enforces that: it assigns
-reward as a pure function of the observable tuple, so the two members of each pair
-receive identical immediate reward no matter which one really occurred.
+``relabel`` assigns reward as a pure function of the observable tuple (level, observable
+outcome, seconds), so the two members of each pair receive identical immediate reward
+whenever they spent the same time. Time is observable and does carry some class
+information -- automated solvers answer text in about a second (humans ~7 s) and image
+grids in about 15 s (humans ~10 s), `expkit.stochastic.BOT_SECONDS` -- as much as real
+solve times carry, and no more. Before round 3 simulated bots spent 0 s, which made the time a perfect
+class label and paid a leaked bot (+25) more than a satisfied human (25 - friction).
 
 Later, and only sometimes:
 
@@ -73,8 +77,9 @@ class ProxyRewardConfig:
 
 def immediate_reward(action: int, outcome: str, seconds: float,
                      cfg: ProxyRewardConfig) -> float:
-    """Reward from observables alone. `outcome` is mapped through OBSERVABLE first,
-    so a blocked bot and a false-positived human are scored identically."""
+    """Reward from observables alone. `outcome` is mapped through OBSERVABLE first, so a
+    blocked bot and a false-positived human who spent the same `seconds` are scored
+    identically; class enters only through what the time itself reveals."""
     obs = OBSERVABLE[outcome]
     friction = cfg.friction_per_second * seconds
 

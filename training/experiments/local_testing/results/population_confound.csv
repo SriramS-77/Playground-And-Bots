@@ -1,0 +1,10 @@
+policy,"corr(DI, bot_fraction)","corr(DI, total_population)","corr(friction, total_population)"
+DQN,-0.034,0.103,0.111
+thompson:mog3,0.022,0.11,0.071
+thompson:mog2,0.022,0.058,0.062
+thompson:gaussian_full,0.036,0.122,-0.176
+thompson:gaussian,-0.042,0.06,-0.147
+linucb:gaussian,0.007,0.069,0.377
+Static Multi-Threshold,0.171,0.155,0.131
+Static Single-Threshold,0.014,-0.011,0.099
+DQN without H-Score,-0.148,-0.225,0.445

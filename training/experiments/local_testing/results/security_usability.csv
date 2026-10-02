@@ -1,0 +1,10 @@
+policy,human_survival,bot_survival,friction_s,bots_blocked
+DQN,0.873,0.089,3.603,0.911
+thompson:mog3,0.873,0.072,3.796,0.928
+thompson:mog2,0.873,0.052,3.801,0.948
+thompson:gaussian_full,0.873,0.055,12.5,0.945
+thompson:gaussian,0.873,0.052,12.353,0.948
+linucb:gaussian,0.897,0.065,42.7,0.935
+Static Multi-Threshold,0.818,0.197,11.7,0.803
+Static Single-Threshold,0.793,0.05,6.216,0.95
+DQN without H-Score,0.88,0.728,8.373,0.272

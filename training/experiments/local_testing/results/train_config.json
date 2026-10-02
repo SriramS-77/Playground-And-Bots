@@ -1,0 +1,33 @@
+{
+  "seed": 0,
+  "episodes": 200,
+  "human_range": [
+    50,
+    250
+  ],
+  "bot_choices": [
+    8,
+    26,
+    64,
+    113,
+    225,
+    450
+  ],
+  "eval_seeds": 12,
+  "bot_fractions": {
+    "0.05": "quiet",
+    "0.15": "light",
+    "0.3": "Imperva baseline (37% band)",
+    "0.43": "Akamai login abuse",
+    "0.6": "elevated",
+    "0.75": "surge"
+  },
+  "fold": 0,
+  "scorer_temperature": 1.2056407150727964,
+  "minutes": {
+    "DQN": 6.39,
+    "DQN without H-Score": 14.92,
+    "linucb": 75.8,
+    "thompson": 60.49
+  }
+}

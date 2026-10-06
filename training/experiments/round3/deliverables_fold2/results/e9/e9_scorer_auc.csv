@@ -1,0 +1,7 @@
+humans,bots,AUC,ci_lo,ci_hi
+eval humans,eval bots,1.0,0.9999999999999999,1.0
+web-bot humans (control),web-bot advanced bots,0.9975,0.99103125,1.0
+web-bot humans (control),web-bot moderate bots (not injected),0.05301724137931039,0.00043103448275862106,0.15582974137931035
+Balabit humans,web-bot advanced bots,0.12922222222222224,0.09544375000000004,0.16728402777777773
+Balabit humans,eval bots,0.9532407407407407,0.9144444444444444,0.9829629629629629
+eval humans,web-bot advanced bots,0.9982142857142857,0.9928571428571428,1.0

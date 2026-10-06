@@ -1,0 +1,33 @@
+injection,arm,phase,share_err,reward_bias
+adversary both,posterior,after,0.21655874921353974,51.39345614973992
+adversary both,posterior,before,0.029571695865156095,-1.9434257178188887
+adversary both,posterior (floored),after,0.2150090613988268,51.74179112988428
+adversary both,posterior (floored),before,0.01887735217898884,-4.925214975080201
+adversary both,posterior+labels,after,0.2194318912121647,43.55003013742386
+adversary both,posterior+labels,before,0.03162972087072471,-2.119956122442924
+adversary both,posterior+labels (floored),after,0.21780780724146476,43.783152392181734
+adversary both,posterior+labels (floored),before,0.018150540508111216,-4.397055371353858
+adversary bots,posterior,after,0.20189802604030782,54.380968513573755
+adversary bots,posterior,before,0.029571695865156095,-1.9434257178188887
+adversary bots,posterior (floored),after,0.2204374699643381,56.363605974954645
+adversary bots,posterior (floored),before,0.01887735217898884,-4.925214975080201
+adversary bots,posterior+labels,after,0.20663826130455126,48.820156057382825
+adversary bots,posterior+labels,before,0.03162972087072471,-2.119956122442924
+adversary bots,posterior+labels (floored),after,0.22477036151771304,50.5349004074655
+adversary bots,posterior+labels (floored),before,0.018150540508111216,-4.397055371353858
+adversary humans,posterior,after,0.18386645904057713,-10.230484197029497
+adversary humans,posterior,before,0.029571695865156095,-1.9434257178188887
+adversary humans,posterior (floored),after,0.17838393553407914,-15.291544141497747
+adversary humans,posterior (floored),before,0.01887735217898884,-4.925214975080201
+adversary humans,posterior+labels,after,0.17764018852914396,-9.136752740599015
+adversary humans,posterior+labels,before,0.03162972087072471,-2.119956122442924
+adversary humans,posterior+labels (floored),after,0.17230423823101465,-13.811564402641345
+adversary humans,posterior+labels (floored),before,0.018150540508111216,-4.397055371353858
+no injection,posterior,after,0.031059103825844578,-2.2486605099409798
+no injection,posterior,before,0.029571695865156095,-1.9434257178188887
+no injection,posterior (floored),after,0.018719587941285566,-5.506316852717722
+no injection,posterior (floored),before,0.01887735217898884,-4.925214975080201
+no injection,posterior+labels,after,0.030765048688655948,-1.8831603404835533
+no injection,posterior+labels,before,0.03162972087072471,-2.119956122442924
+no injection,posterior+labels (floored),after,0.01870295705070419,-4.669298801212387
+no injection,posterior+labels (floored),before,0.018150540508111216,-4.397055371353858

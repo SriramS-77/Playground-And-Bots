@@ -1,0 +1,7 @@
+group,sessions,mean_score,classified_correctly,ci_lo,ci_hi
+eval humans,14,0.10858629500504073,1.0,1.0,1.0
+eval bots,36,0.9279807256382983,1.0,1.0,1.0
+Balabit humans,300,0.570803455359545,0.2866666666666667,0.24,0.3433333333333333
+web-bot humans (control),20,0.10664176774654714,1.0,1.0,1.0
+web-bot advanced bots,120,0.30083955362470516,0.0,0.0,0.0
+web-bot moderate bots (not injected),116,0.0385797372858586,0.0,0.0,0.0

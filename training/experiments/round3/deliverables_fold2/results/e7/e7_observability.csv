@@ -1,0 +1,4 @@
+observation,n,bot_blocked,human_false_positive,human_abandoned,human_passed,bot_leaked
+failed_gone,10739.0,0.8839742992829872,0.1160257007170127,0.0,0.0,0.0
+passed_left,4520.0,0.0,0.0,1.0,0.0,0.0
+passed_continued,36245.0,0.0,0.0,0.0,0.5253966064284729,0.4746033935715271

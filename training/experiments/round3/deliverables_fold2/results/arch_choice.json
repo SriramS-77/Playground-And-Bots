@@ -1,0 +1,37 @@
+{
+  "fold": 2,
+  "selected_on": "rl_val, 3 rotation(s)",
+  "rule": "best mean DI (bots>0), SE over training seeds; within 1 SE: least friction among those with human survival >= best's - 0.05 and bot survival <= best's + 0.05, then fewest params",
+  "train_human_range": [
+    50,
+    250
+  ],
+  "scorer_cfg": {
+    "representation": "kinematic",
+    "padding": "mask",
+    "lstm_units": [
+      32
+    ],
+    "dense_units": [
+      32
+    ],
+    "dropout": 0.25,
+    "recurrent_dropout": 0.2,
+    "lr": 0.003,
+    "batch_size": 64,
+    "context": 32,
+    "epochs": 120,
+    "patience": 15,
+    "start_from_epoch": 30,
+    "class_balance": "window",
+    "augmentation": "none",
+    "n_copies": 1,
+    "magnitude": 1,
+    "sigma": 2.0
+  },
+  "choice": {
+    "dqn": "dqn:128-64",
+    "linucb": "linucb:h64_e32:gaussian",
+    "thompson": "thompson:h128_64_e64:mog3"
+  }
+}

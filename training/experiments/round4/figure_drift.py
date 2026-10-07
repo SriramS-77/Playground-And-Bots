@@ -72,7 +72,7 @@ def make_figure(curves_csv, metrics_csv, out_png):
         _axes(ax, m, direction)
         ax.set_ylabel(ROWS[direction] + "\n\nDI (humans kept % - bots through %)", fontsize=9)
         if r == 0:
-            ax.set_title("Offline-trained, evaluated frozen (deterministic world)",
+            ax.set_title("Offline-trained, evaluated frozen (grounded world)",
                          loc="left", fontweight="bold", fontsize=10)
         else:
             ax.legend(fontsize=7.5, frameon=False, loc="upper center", ncol=2,

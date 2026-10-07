@@ -233,14 +233,16 @@ def prepare():
 # --------------------------------------------------------------------------- #
 
 def train_candidate(family: str, spec: str, seed: int, humans, bots, cache, episodes: int,
-                    posteriors=None):
-    """-> {candidate_name: policy}, {candidate_name: n_params}"""
+                    posteriors=None, solve=DETERMINISTIC, cfg=PAPER_EQUIVALENT):
+    """-> {candidate_name: policy}, {candidate_name: n_params}. `solve` / `cfg` pick the world
+    (default: the deterministic one every round-3 search and headline task used)."""
     if family in ("dqn", "ablation"):
         hidden = tuple(int(x) for x in spec.split("-"))
         agent, _ = train_dqn(humans, bots, cache, episodes=episodes, seed=seed,
                              human_counts=TRAIN_HUMAN_RANGE, bot_choices=BOT_VOLUMES,
                              verbose=0, hidden=hidden, use_score=(family == "dqn"),
-                             name=("DQN" if family == "dqn" else "DQN without H-Score"))
+                             name=("DQN" if family == "dqn" else "DQN without H-Score"),
+                             solve=solve, cfg=cfg)
         assert agent.hidden == hidden
         tag = f"{family}:{spec}"
         return {tag: agent.eval_mode()}, {tag: n_params(agent.policy_net)}
@@ -251,7 +253,7 @@ def train_candidate(family: str, spec: str, seed: int, humans, bots, cache, epis
         hidden = tuple(int(x) for x in spec.split("-"))
         agent, _ = train_ppo(humans, bots, cache, episodes=episodes, seed=seed,
                              human_counts=TRAIN_HUMAN_RANGE, bot_choices=BOT_VOLUMES,
-                             verbose=0, hidden=hidden, name="PPO")
+                             verbose=0, hidden=hidden, name="PPO", solve=solve, cfg=cfg)
         tag = f"ppo:{spec}"
         return {tag: agent.eval_mode()}, {tag: n_params(agent.actor)}
 
@@ -259,7 +261,7 @@ def train_candidate(family: str, spec: str, seed: int, humans, bots, cache, epis
     arch = next(a for a in BANDIT_ARCHS if a.name == arch_name)
     policy, _ = train_bandit(family, humans, bots, cache, arch=arch, episodes=episodes,
                              seed=seed, human_counts=TRAIN_HUMAN_RANGE,
-                             bot_choices=BOT_VOLUMES, verbose=0)
+                             bot_choices=BOT_VOLUMES, verbose=0, solve=solve, cfg=cfg)
     wanted = posteriors or (POSTERIORS if family == "thompson" else ("gaussian",))
     variants = {}
     for post in wanted:

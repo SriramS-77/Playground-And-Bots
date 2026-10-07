@@ -30,10 +30,13 @@ PRE-DECLARED for the drift stage (fixed before any run; do not revise):
               shifted class's Brier score, balanced accuracy at 0.5. AUC is NOT the x-axis: on
               the same-source web-bot data it stays ~0.998 while the advanced bots' P(bot) sits
               at 0.30-0.39 -- ranking intact, calibration broken (Davis et al. 2017).
-  offline     policies trained OFFLINE as the headline trains them (rl block, deterministic world,
-              oracle reward, 200 episodes, arch_choice): DQN, PPO, Thompson, LinUCB, DQN without
-              H-score, 5 seeds; Static Single / Multi. Evaluated FROZEN at all 21 shift points in
-              the deterministic world (the headline's), 100 humans x SCORED_VOLUMES x 20 seeds.
+  world       GROUNDED (stochastic solves, human failures and abandonment; E7/E8/E9's world) for
+              BOTH panels, training and evaluation -- so the panels differ only in offline vs
+              online training. Decided by the user before any run (HANDOFF_ROUND4 R6).
+  offline     policies trained OFFLINE (rl block, GROUNDED world, oracle reward, 200 episodes,
+              arch_choice): DQN, PPO, Thompson, LinUCB, DQN without H-score, 5 seeds; Static
+              Single / Multi. Evaluated FROZEN at all 21 shift points, 100 humans x
+              SCORED_VOLUMES x 20 seeds.
   online      E9's protocol, GROUNDED world: 300 episodes on the rl block; from episode 100 the
               training pool of the shifted class is mixed at RHO with INJECT sessions; evaluated
               at episode 300 on the same (direction, RHO) point and on "seen" (RHO = 0).
@@ -379,13 +382,12 @@ def _evaluate_points(policy, name, p, pts, smoke, solve, cfg, tags):
 
 
 def run_offline(task, smoke):
-    from expkit.stochastic import DETERMINISTIC, PAPER_EQUIVALENT
     fam, seed = task["family"], task["seed"]
     p = pools(smoke, f"R4 drift offline {fam} seed {seed}")
     pts = points(SMOKE_LEVELS if smoke else LEVELS)
     episodes = 3 if smoke else R.EPISODES
     if fam == "statics":
-        frames = [_evaluate_points(pol, pol.name, p, pts, smoke, DETERMINISTIC, PAPER_EQUIVALENT,
+        frames = [_evaluate_points(pol, pol.name, p, pts, smoke, C.GROUNDED, C.GROUNDED_CFG,
                                    {"panel": "offline", "family": "statics", "train_seed": -1})
                   for pol in C.statics()]
         df = pd.concat(frames, ignore_index=True)
@@ -395,13 +397,14 @@ def run_offline(task, smoke):
         spec = ch[base].split(":", 1)[1]
         post = [spec.split(":")[1]] if base in ("linucb", "thompson") else None
         variants, _ = R.train_candidate(fam, spec, seed, p.train_h, p.train_b, p.cache, episodes,
-                                        posteriors=post)
+                                        posteriors=post, solve=C.GROUNDED,
+                                        cfg=C.GROUNDED_CFG)
         (tag, pol), = variants.items()
         if hasattr(pol, "eval_mode"):
             pol.eval_mode()
         name = {"dqn": "DQN", "ppo": "PPO", "linucb": "LinUCB", "thompson": "Thompson Sampling",
                 "ablation": "DQN without H-Score"}[fam]
-        df = _evaluate_points(pol, name, p, pts, smoke, DETERMINISTIC, PAPER_EQUIVALENT,
+        df = _evaluate_points(pol, name, p, pts, smoke, C.GROUNDED, C.GROUNDED_CFG,
                               {"panel": "offline", "family": fam, "candidate": tag, "train_seed": seed})
     C.save(df, "drift", _name(task), smoke)
 

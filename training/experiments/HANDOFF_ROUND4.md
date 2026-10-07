@@ -27,6 +27,7 @@ folds 0/1, the eval block opened only by final-evaluation tasks and every openin
 | R3 | PPO hyperparameters fixed, not searched: clip 0.2, GAE λ 0.95, γ 0.95, 10 epochs, minibatch 64, Adam 3e-4, entropy 0.01, value coef 0.5, grad-norm 0.5, separate actor/critic (`expkit/ppo.py`, `PPOConfig`) | only the body is searched, as for DQN |
 | R4 | Drift design, x-axis, levels, panels and the primary contrast as declared in the docstring of `round4/r4_fold2.py` | pre-registration; summary in §4 |
 | R5 | Full grid: 2 directions × 10 levels × 6 arms × {DQN, PPO} × 5 seeds | user's choice |
+| R6 | **Grounded world for both drift panels**, training and evaluation (offline policies are trained offline with the oracle reward in the grounded world) | the user's choice: the world the paper moves to for Reviewer 1; the panels then differ only in offline vs online training. The ppo stage stays deterministic, like the round-3 search it extends |
 
 ## 2. Run order
 
@@ -71,8 +72,8 @@ wide ≈ 30 min; drift online/control ≈ 1,260 × ~5 min / 25 ≈ 4–5 h; the 
 * `eval_access.log` (per stage directory): one line per drift task that evaluates (all except
   the `metrics` task, which also opens it — 1,287 lines expected); none for the ppo stage.
 * Smoke must end with "OK (eval block untouched)".
-* Sanity: at ρ = 0 the offline DQN should be near round 3's headline (≈ 99 DI) — under a
-  different scorer seed, so not identical — and the online oracle near E7's (≈ 89 DI).
+* Sanity: at ρ = 0 the offline DQN should be near E8's grounded-trained DQN (≈ 89 DI) and
+  the online oracle near E7's (≈ 89 DI) — under a different scorer seed, so not identical.
   A large miss means something is broken: stop and report.
 
 ## 4. The drift experiment (summary of the pre-registration)
@@ -87,8 +88,8 @@ wide ≈ 30 min; drift online/control ≈ 1,260 × ~5 min / 25 ≈ 4–5 h; the 
   `mean(P(bot))`. Pool AUC, Brier and accuracy at 0.5 are reported beside it
   (`drift_metrics.csv`). AUC is deliberately not the axis: same-source advanced bots keep
   AUC ≈ 0.998 while sitting at P(bot) 0.30–0.39 — ranking intact, calibration broken.
-* **Offline panel.** Trained as the headline trains (deterministic world, oracle reward,
-  200 episodes): DQN, PPO, Thompson, LinUCB, DQN without H-score (5 seeds each), Static
+* **Offline panel.** Trained offline in the GROUNDED world (oracle reward, 200 episodes,
+  the headline's sampler): DQN, PPO, Thompson, LinUCB, DQN without H-score (5 seeds each), Static
   Single/Multi — evaluated frozen at all 21 points.
 * **Online panels.** E9's protocol in the grounded world: 300 episodes, the shift switched
   on at episode 100, evaluated at episode 300 at the same point (and at ρ = 0). Arms: oracle,

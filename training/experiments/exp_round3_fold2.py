@@ -245,6 +245,16 @@ def train_candidate(family: str, spec: str, seed: int, humans, bots, cache, epis
         tag = f"{family}:{spec}"
         return {tag: agent.eval_mode()}, {tag: n_params(agent.policy_net)}
 
+    if family == "ppo":
+        # Not in the search grid; available so a PPO run uses the same sampler and budget.
+        from expkit.ppo import train_ppo
+        hidden = tuple(int(x) for x in spec.split("-"))
+        agent, _ = train_ppo(humans, bots, cache, episodes=episodes, seed=seed,
+                             human_counts=TRAIN_HUMAN_RANGE, bot_choices=BOT_VOLUMES,
+                             verbose=0, hidden=hidden, name="PPO")
+        tag = f"ppo:{spec}"
+        return {tag: agent.eval_mode()}, {tag: n_params(agent.actor)}
+
     arch_name = spec.split(":")[0]
     arch = next(a for a in BANDIT_ARCHS if a.name == arch_name)
     policy, _ = train_bandit(family, humans, bots, cache, arch=arch, episodes=episodes,
@@ -265,12 +275,15 @@ def train_candidate(family: str, spec: str, seed: int, humans, bots, cache, epis
 
 
 def load_policy(path):
-    """Any checkpoint from `agents/` -- DQN, ablation, LinUCB or Thompson (any posterior) --
+    """Any checkpoint from `agents/` -- DQN, ablation, PPO, LinUCB or Thompson (any posterior) --
     as a frozen policy. E6 and E8 evaluate these instead of retraining."""
     from expkit.bandits_x import load_bandit
     from expkit.trainer import TrainableDQN
 
     ck = torch.load(str(path), map_location="cpu", weights_only=False)
+    if "actor" in ck:
+        from expkit.ppo import load_ppo
+        return load_ppo(path)
     if "policy_net_state_dict" in ck:
         score = ck["state_size"] == 5
         return TrainableDQN(name="DQN" if score else "DQN without H-Score", use_score=score,

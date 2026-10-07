@@ -364,7 +364,15 @@ class HumanityScorer:
         meta = json.loads((d / "scorer.json").read_text())
         cfg = ScorerConfig(**{k: (tuple(v) if isinstance(v, list) else v)
                               for k, v in meta["config"].items()})
-        scorer = cls(cfg, tf.keras.models.load_model(str(d / "model.keras")),
+        try:
+            model = tf.keras.models.load_model(str(d / "model.keras"))
+        except (TypeError, ValueError):
+            # Saved by a different Keras version, whose layer configs this one cannot parse
+            # (the round-3 cluster's Keras writes `input_axes` / `quantization_config`). The
+            # architecture is fully determined by `cfg`, so rebuild it and load the weights.
+            model = cfg.build()
+            model.load_weights(str(d / "model.keras"))
+        scorer = cls(cfg, model,
                      Standardiser.from_dict(meta["standardiser"]),
                      meta.get("temperature", 1.0))
         # Absent in anything saved before round 3 -- including round 2's cached fold

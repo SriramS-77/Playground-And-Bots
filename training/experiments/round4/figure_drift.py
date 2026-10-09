@@ -1,6 +1,12 @@
-"""DI against the scorer's calibration error -- the round-4 drift figure (HANDOFF_ROUND4 §4).
+"""DI against the scorer's calibration error -- the round-4 drift figures (HANDOFF_ROUND4 §4).
 
-Rows: shift direction (bots look human / humans look bot-like). Columns: offline-trained
+`make_figure` (the paper figure, round 4b): rows = shift direction, columns = DQN / PPO. In each
+panel a floor (the oracle-trained policy that never saw the shift, frozen), a ceiling (retrained
+from scratch on the shifted pool with the oracle reward) and three online arms: oracle,
+score-only, posterior+labels. `make_figure_full` (supplementary): every arm and the frozen
+offline policies.
+
+Full figure. Rows: shift direction (bots look human / humans look bot-like). Columns: offline-trained
 policies evaluated frozen; online training with DQN; online training with PPO. Online
 panels: solid = trained through the shift, dashed = the same arm trained without it (the
 control). One y-axis (DI) for every panel. Points are means over training seeds, whiskers SE.
@@ -55,7 +61,7 @@ def _axes(ax, m, direction):
     ax.set_xlabel(XLAB[direction], fontsize=8)
 
 
-def make_figure(curves_csv, metrics_csv, out_png):
+def make_figure_full(curves_csv, metrics_csv, out_png):
     cur = pd.read_csv(curves_csv)
     met = pd.read_csv(metrics_csv)
     met = met[met.pool == "eval"]
@@ -108,6 +114,57 @@ def make_figure(curves_csv, metrics_csv, out_png):
                  "(mean over training seeds, whiskers SE; tick labels: calibration error / pool AUC)",
                  fontsize=11, color=INK, y=0.995)
     fig.tight_layout(rect=(0, 0.02, 1, 0.97), h_pad=2.5, w_pad=1.5)
+    fig.savefig(out_png, dpi=150)
+    plt.close(fig)
+    print("wrote", out_png)
+
+
+MAIN_ARMS = ["oracle", "score-only", "posterior+labels"]
+FLOOR, CEIL = "#8a8985", INK
+
+
+def _line(ax, d, color, marker, label, ls="-", lw=2.0, ms=5.5, mfc=None, z=3):
+    d = d.sort_values("citl_error")
+    ax.errorbar(d.citl_error, d.DI, yerr=d.DI_se.fillna(0), color=color, lw=lw, ls=ls, marker=marker,
+                ms=ms, mfc=mfc or color, mec=color, mew=1.2, elinewidth=1, capsize=2, label=label,
+                zorder=z)
+
+
+def make_figure(curves_csv, metrics_csv, out_png):
+    cur = pd.read_csv(curves_csv)
+    met = pd.read_csv(metrics_csv)
+    met = met[met.pool == "eval"]
+    fig, axes = plt.subplots(2, 2, figsize=(11.5, 9.5), sharey=True)
+    for r, direction in enumerate(("bots", "humans")):
+        m = met[((met.direction == direction) | (met.direction == "none")) & (met["class"] == direction)]
+        c = cur[cur.eval_direction == direction]
+        for col, algo in enumerate(("DQN", "PPO")):
+            ax = axes[r, col]
+            floor = c[(c.panel == "control") & (c.policy == f"{algo} oracle")]
+            z = floor[floor.eval_rho == 0]
+            _line(ax, floor, FLOOR, "o", "No online training (oracle-trained, frozen)", ls=(0, (4, 3)),
+                  lw=1.6, ms=4, mfc=SURF, z=2)
+            ceil = c[(c.panel == "retrain") & (c.policy == f"{algo} oracle")]
+            if len(ceil):
+                _line(ax, pd.concat([z, ceil[ceil.eval_rho > 0]]), CEIL, "s",
+                      "Ceiling: retrained on the shifted data with true labels", lw=1.6, ms=4, z=2)
+            for i, arm in enumerate(MAIN_ARMS):
+                on = c[(c.panel == "online") & (c.policy == f"{algo} {arm}")]
+                ctl = c[(c.panel == "control") & (c.policy == f"{algo} {arm}")]
+                if len(on):
+                    _line(ax, pd.concat([ctl[ctl.eval_rho == 0], on[on.eval_rho > 0]]), SLOTS[i],
+                          MARKERS[i + 1], f"Online, {arm} reward")
+            _axes(ax, m, direction)
+            if r == 0:
+                ax.set_title(f"{algo}", loc="left", fontweight="bold", fontsize=10)
+            if col == 0:
+                ax.set_ylabel(ROWS[direction] + "\n\nDI (humans kept % - bots through %)", fontsize=9)
+    h, lab = axes[1, 0].get_legend_handles_labels()
+    fig.legend(h, lab, loc="lower center", ncol=3, frameon=False, fontsize=8.5)
+    fig.suptitle("Online training as the humanity scorer's calibration error grows -- fold 2 "
+                 "(grounded world; mean over 5 training seeds, whiskers SE)", fontsize=11, color=INK,
+                 y=0.995)
+    fig.tight_layout(rect=(0, 0.07, 1, 0.97), h_pad=2.5, w_pad=1.5)
     fig.savefig(out_png, dpi=150)
     plt.close(fig)
     print("wrote", out_png)

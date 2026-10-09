@@ -111,3 +111,31 @@ reproducible from git), plus the Slurm logs. In particular: `ppo/search_ppo.csv`
 CSV in the deliverable, with the file named. Do not paraphrase a number from memory, and do
 not report a pre-declared check as passing without the column that says so. Round 3's
 write-up broke this and was replaced.
+
+---
+
+## 6. Round 4b — the retrain ceiling (200 tasks)
+
+Added after round 4's results, declared before it runs (docstring of `round4/r4_fold2.py`,
+`retrain`). **Do not rerun or renumber tasks 0–1286**; their CSVs stay in `drift/drift/tasks/`.
+
+* **What:** DQN and PPO (round-4 architectures) trained from scratch for 300 episodes with the
+  **oracle** reward on the **shifted training pool** of (direction, ρ) from the first episode — a
+  defender who labels the new traffic and retrains. Evaluated at that point only (eval block, logged).
+  2 algorithms × 2 directions × 10 levels × 5 seeds = **200 tasks, ids 1287–1486**.
+* It is not part of the primary contrast (`drift_contrasts.csv` is unchanged by it).
+
+```bash
+git pull                                          # main
+python round4/r4_fold2.py --stage drift --list    # 1487 tasks; 1287..1486 are kind "retrain"
+sbatch --array=1287-1486%25 slurm/r4.sh drift     # if the scheduler caps array ids, use an offset
+python round4/r4_fold2.py --stage drift --collect
+python round4/r4_fold2.py --stage drift --figure  # drift_vs_calibration.png (2x2 paper figure)
+                                                  # + drift_vs_calibration_all_arms.png (full)
+```
+
+* `eval_access.log` gains 200 lines (1,487 in total).
+* Sanity: the retrain line at ρ = 1 should be at or above the online oracle line (it trains on
+  the shifted pool for 300 episodes instead of 200). A retrain value far below online oracle is a bug: stop and report.
+* **Deliverables:** the 200 new task CSVs, the regenerated `drift_curves.csv`, `drift_per_seed.csv`,
+  both figures, `eval_access.log`, Slurm logs. Findings follow §5's rule.

@@ -45,6 +45,11 @@ PRE-DECLARED for the drift stage (fixed before any run; do not revise):
                    posterior+labels (floored), score-only (E7's configs, unchanged); 5 seeds.
   control     the same algorithm x arm x seed trained 300 episodes with NO shift, evaluated at all
               21 points: the "no online training through the shift" comparator.
+  retrain     ADDED AFTER the round-4 results (round 4b; declared before it runs): the ceiling.
+              DQN and PPO trained from scratch for TOTAL episodes with the ORACLE reward on the
+              shifted training pool of (direction, RHO) only -- a defender who labels the new
+              traffic and retrains. Evaluated at that point. 5 seeds. Appended after the 1,287
+              round-4 tasks, so their ids do not move. Not part of the primary contrast.
   contrast    primary, per (algorithm, arm, direction): mean DI over the 10 shifted levels,
               online minus control, Welch over the 5 seeds; Holm correction over the 24
               contrasts. Per-level differences are descriptive only.
@@ -351,7 +356,16 @@ def drift_tasks():
           for a in ALGOS for arm in ARMS for s in range(R.SEEDS)]
     t += [{"kind": "online", "algo": a, "arm": arm, "direction": d, "rho": rho, "seed": s}
           for a in ALGOS for d in DIRECTIONS for rho in LEVELS for arm in ARMS for s in range(R.SEEDS)]
+    t += retrain_tasks()          # round 4b: ids from ROUND4_TASKS on
     return t
+
+
+ROUND4_TASKS = 1287              # tasks 0..1286 are round 4's; never renumber them
+
+
+def retrain_tasks():
+    return [{"kind": "retrain", "algo": a, "arm": "oracle", "direction": d, "rho": rho, "seed": s}
+            for a in ALGOS for d in DIRECTIONS for rho in LEVELS for s in range(R.SEEDS)]
 
 
 def smoke_drift_tasks():
@@ -361,7 +375,9 @@ def smoke_drift_tasks():
             {"kind": "online", "algo": "dqn", "arm": "posterior (floored)", "direction": "bots",
              "rho": 1.0, "seed": 0},
             {"kind": "online", "algo": "ppo", "arm": "oracle", "direction": "humans",
-             "rho": 0.5, "seed": 0}]
+             "rho": 0.5, "seed": 0},
+            {"kind": "retrain", "algo": "dqn", "arm": "oracle", "direction": "bots",
+             "rho": 1.0, "seed": 0}]
 
 
 def _name(task):
@@ -410,14 +426,19 @@ def run_offline(task, smoke):
 
 
 def run_trained(task, smoke):
-    """kind "online" (shift injected at INJECT_EP) or "control" (never shifted)."""
+    """kind "online" (shift injected at INJECT_EP), "control" (never shifted) or "retrain"
+    (shifted pool from the first episode, oracle reward: the ceiling)."""
     import e7_proxy_reward as E
     import expkit.trainer as T
     from expkit.posterior_reward import OutcomeModel
     algo, arm, seed = task["algo"], task["arm"], task["seed"]
-    online = task["kind"] == "online"
+    retrain = task["kind"] == "retrain"
+    online = task["kind"] in ("online", "retrain")
     direction, rho = (task["direction"], task["rho"]) if online else ("none", 0.0)
     total, inject = (SMOKE_TOTAL, SMOKE_INJECT) if smoke else (TOTAL, INJECT_EP)
+    if retrain:
+        assert arm == "oracle", "the ceiling is trained with the oracle reward"
+        inject = 0
     p = pools(smoke, f"R4 drift {task['kind']} {algo} {arm} {direction} {rho} seed {seed}")
     after_h, after_b, real = shifted(p, direction, rho, held_out=False)
     spec = dict(E.CONFIGS[arm])
@@ -448,8 +469,9 @@ def run_trained(task, smoke):
     assert st["ep"] == total, f"{st['ep']} training episodes seen, expected {total}"
     agent.eval_mode()
     lv = SMOKE_LEVELS if smoke else LEVELS
-    pts = points(lv) if not online else [("none", 0.0), (direction, rho)]
-    tags = {"panel": "online" if online else "control", "algo": algo.upper(), "arm": arm,
+    pts = (points(lv) if not online else
+           [(direction, rho)] if retrain else [("none", 0.0), (direction, rho)])
+    tags = {"panel": task["kind"], "algo": algo.upper(), "arm": arm,
             "train_direction": direction, "train_rho": rho, "train_rho_realised": real,
             "train_seed": seed}
     df = _evaluate_points(agent, f"{algo.upper()} {arm}", p, pts, smoke, C.GROUNDED,
@@ -470,7 +492,8 @@ def run_drift_task(task, smoke):
     {"metrics": lambda: run_metrics(smoke),
      "offline": lambda: run_offline(task, smoke),
      "control": lambda: run_trained(task, smoke),
-     "online": lambda: run_trained(task, smoke)}[task["kind"]]()
+     "online": lambda: run_trained(task, smoke),
+     "retrain": lambda: run_trained(task, smoke)}[task["kind"]]()
 
 
 # --------------------------------------------------------------------------- #
@@ -532,9 +555,11 @@ def drift_collect(smoke=False):
 
 
 def drift_figure(smoke=False):
-    from figure_drift import make_figure
+    from figure_drift import make_figure, make_figure_full
     d = C.out_dir("drift", smoke)
     make_figure(d / "drift_curves.csv", d / "drift_metrics.csv", d / "drift_vs_calibration.png")
+    make_figure_full(d / "drift_curves.csv", d / "drift_metrics.csv",
+                     d / "drift_vs_calibration_all_arms.png")
 
 
 def drift_smoke():

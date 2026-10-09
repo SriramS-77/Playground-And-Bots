@@ -63,8 +63,8 @@ The x-axis behaves as designed: monotone in ρ, while AUC barely moves.
 | posterior+labels | +2.0 (1.0) | +7.9 (0.074) | −20.1 (0.14) | **−11.0** (0.009) |
 | posterior+labels (floored) | −6.9 (1.0) | +1.9 (1.0) | **−21.6** (0.011) | **−17.7** (0.015) |
 
-Bold = p_holm < 0.05. Seven of 24 contrasts are significant gains or losses in each sign group
-as shown; no posterior-family arm gains significantly anywhere.
+Bold = p_holm < 0.05: 5 significant gains (all oracle or score-only) and 6 significant losses
+(all on the human shift); no posterior-family arm gains significantly anywhere.
 
 **The means hide a collapse at high drift** (`drift/drift_curves.csv`, ρ = 1):
 

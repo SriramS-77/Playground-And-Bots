@@ -132,8 +132,9 @@ class OutcomeModel:
         ef = np.divide(fric, mass, out=np.zeros(3), where=mass > 0)
         self.p_h[T] = mass
         pass_r = cfg.max_reward if T == 0 else cfg.max_reward / 2.0
+        left_r = pass_r if cfg.abandonment_penalty is None else cfg.abandonment_penalty
         self.r_h[T] = (pass_r - (0.0 if T == 0 else ef[0]),
-                       pass_r - (0.0 if T == 0 else ef[1]),
+                       left_r - (0.0 if T == 0 else ef[1]),
                        cfg.false_positive_penalty - ef[2])
 
 

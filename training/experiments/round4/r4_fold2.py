@@ -50,6 +50,17 @@ PRE-DECLARED for the drift stage (fixed before any run; do not revise):
               shifted training pool of (direction, RHO) only -- a defender who labels the new
               traffic and retrains. Evaluated at that point. 5 seeds. Appended after the 1,287
               round-4 tasks, so their ids do not move. Not part of the primary contrast.
+  abandon     ADDED AFTER round 4b's ablations (round 4c; declared before it runs). The oracle
+              reward paid a human who passed and then left as a pass, while DI counts that human
+              as lost. Charge it instead: `abandonment_penalty` in {-50, -100} (-100 = the
+              false-positive penalty, i.e. DI's accounting: a lost human is a lost human),
+              friction still charged, in training AND in the posterior arms' outcome model.
+              Arms oracle, score-only, posterior, posterior (fixed share) -- the last freezes
+              the posterior's bot share at the calibration set's (the ablation that recovered
+              covert bots); it also runs once at the round-4 reward (no penalty) as its own
+              baseline. DQN and PPO, levels ABANDON_LEVELS, online + control, 5 seeds.
+              Reported in its own contrast table (`abandon_contrasts.csv`), never in the
+              primary contrast's Holm family.
   contrast    primary, per (algorithm, arm, direction): mean DI over the 10 shifted levels,
               online minus control, Welch over the 5 seeds; Holm correction over the 24
               contrasts. Per-level differences are descriptive only.
@@ -356,11 +367,35 @@ def drift_tasks():
           for a in ALGOS for arm in ARMS for s in range(R.SEEDS)]
     t += [{"kind": "online", "algo": a, "arm": arm, "direction": d, "rho": rho, "seed": s}
           for a in ALGOS for d in DIRECTIONS for rho in LEVELS for arm in ARMS for s in range(R.SEEDS)]
-    t += retrain_tasks()          # round 4b: ids from ROUND4_TASKS on
+    t += retrain_tasks()          # round 4b: ids 1287..1486
+    t += abandon_tasks()          # round 4c: ids from 1487 on
     return t
 
 
 ROUND4_TASKS = 1287              # tasks 0..1286 are round 4's; never renumber them
+ABANDON_PENALTIES = (-50.0, -100.0)
+ABANDON_LEVELS = (0.2, 0.5, 0.8, 1.0)
+ABANDON_ARMS = ("oracle", "score-only", "posterior", "posterior (fixed share)")
+
+
+def abandon_tasks():
+    combos = [(arm, pen) for pen in ABANDON_PENALTIES for arm in ABANDON_ARMS]
+    combos += [("posterior (fixed share)", None)]
+    t = []
+    for arm, pen in combos:
+        t += [{"kind": "control", "algo": a, "arm": arm, "abandon": pen, "seed": s}
+              for a in ALGOS for s in range(R.SEEDS)]
+        t += [{"kind": "online", "algo": a, "arm": arm, "abandon": pen, "direction": d, "rho": rho,
+               "seed": s} for a in ALGOS for d in DIRECTIONS for rho in ABANDON_LEVELS
+              for s in range(R.SEEDS)]
+    return t
+
+
+def policy_name(task):
+    name = f"{task['algo'].upper()} {task['arm']}"
+    if task.get("abandon") is not None:
+        name += f" [abandon {task['abandon']:g}]"
+    return name
 
 
 def retrain_tasks():
@@ -377,12 +412,16 @@ def smoke_drift_tasks():
             {"kind": "online", "algo": "ppo", "arm": "oracle", "direction": "humans",
              "rho": 0.5, "seed": 0},
             {"kind": "retrain", "algo": "dqn", "arm": "oracle", "direction": "bots",
-             "rho": 1.0, "seed": 0}]
+             "rho": 1.0, "seed": 0},
+            {"kind": "online", "algo": "ppo", "arm": "posterior (fixed share)", "abandon": -100.0,
+             "direction": "humans", "rho": 1.0, "seed": 0}]
 
 
 def _name(task):
     parts = [task["kind"]] + [str(task[k]) for k in ("family", "algo", "arm", "direction", "rho", "seed")
                               if k in task]
+    if "abandon" in task:
+        parts.insert(1, f"abandon{task['abandon']}")
     return "__".join(parts).replace(" ", "_").replace("+", "plus").replace("(", "").replace(")", "")
 
 
@@ -439,15 +478,25 @@ def run_trained(task, smoke):
     if retrain:
         assert arm == "oracle", "the ceiling is trained with the oracle reward"
         inject = 0
-    p = pools(smoke, f"R4 drift {task['kind']} {algo} {arm} {direction} {rho} seed {seed}")
+    import dataclasses
+    import expkit.posterior_reward as PR
+    p = pools(smoke, f"R4 drift {task['kind']} {algo} {arm} {direction} {rho} seed {seed}"
+                     + (f" abandon {task['abandon']}" if "abandon" in task else ""))
     after_h, after_b, real = shifted(p, direction, rho, held_out=False)
-    spec = dict(E.CONFIGS[arm])
+    cfg = dataclasses.replace(C.GROUNDED_CFG, abandonment_penalty=task.get("abandon"))
+    fixed_share = arm == "posterior (fixed share)"
+    spec = dict(E.CONFIGS["posterior" if fixed_share else arm])
     hook = spec.pop("hook", None)
     spec.pop("episodes", None)
     om = calib = None
     if hook in E.POSTERIOR_HOOKS:
-        om = OutcomeModel(C.GROUNDED, C.GROUNDED_CFG)
+        om = OutcomeModel(C.GROUNDED, cfg)
         calib = E.calibration_for(hook, E.fit_calibration(p) if hook != "score_only" else None)
+    real_pr = PR.posterior_rewards
+
+    def pr_fixed(transitions, om_, calib_, **kw):     # the bot share frozen, never EM
+        kw["share"] = calib.pi_cal
+        return real_pr(transitions, om_, calib_, **kw)
     st = {"ep": 0}
     real_run_x = T.run_x
 
@@ -461,21 +510,23 @@ def run_trained(task, smoke):
     t0 = time.time()
     with E.hooked(hook, spec.get("proxy_cfg"), None, om=om, calib=calib):
         T.run_x = run_x_hooked
+        if fixed_share:
+            PR.posterior_rewards = pr_fixed
         try:
             agent, _ = train_online(algo, p.train_h, p.train_b, p.cache, seed, total, smoke,
-                                    solve=C.GROUNDED, cfg=C.GROUNDED_CFG, **spec)
+                                    solve=C.GROUNDED, cfg=cfg, **spec)
         finally:
             T.run_x = real_run_x
+            PR.posterior_rewards = real_pr
     assert st["ep"] == total, f"{st['ep']} training episodes seen, expected {total}"
     agent.eval_mode()
-    lv = SMOKE_LEVELS if smoke else LEVELS
+    lv = SMOKE_LEVELS if smoke else ABANDON_LEVELS if "abandon" in task else LEVELS
     pts = (points(lv) if not online else
            [(direction, rho)] if retrain else [("none", 0.0), (direction, rho)])
     tags = {"panel": task["kind"], "algo": algo.upper(), "arm": arm,
             "train_direction": direction, "train_rho": rho, "train_rho_realised": real,
-            "train_seed": seed}
-    df = _evaluate_points(agent, f"{algo.upper()} {arm}", p, pts, smoke, C.GROUNDED,
-                          C.GROUNDED_CFG, tags)
+            "train_seed": seed, "abandon_penalty": task.get("abandon")}
+    df = _evaluate_points(agent, policy_name(task), p, pts, smoke, C.GROUNDED, cfg, tags)
     C.save(df, "drift", _name(task), smoke)
     print(f"  {_name(task)}: {(time.time() - t0) / 60:.1f} min", flush=True)
 
@@ -534,9 +585,27 @@ def drift_collect(smoke=False):
     print(t[["citl_error", "pool_auc", "DI", "DI_se", "n_seeds"]].round(3).to_string())
 
     # primary contrast: online vs control, mean over the 10 shifted levels, per seed
+    primary = {f"{a.upper()} {arm}" for a in ALGOS for arm in ARMS}
+    ct = _contrasts(per_seed[per_seed.policy.isin(primary)])
+    if ct is not None:
+        ct.to_csv(d / "drift_contrasts.csv", index=False)
+        print("\nPRIMARY CONTRAST (online - control, mean over shifted levels; Holm over "
+              f"{len(ct)}):\n" + ct.round(4).to_string(index=False))
+    sec = per_seed[~per_seed.policy.isin(primary) & per_seed.eval_rho.isin([0.0, *ABANDON_LEVELS])]
+    ct2 = _contrasts(sec[sec.panel != "retrain"])
+    if ct2 is not None:
+        ct2.to_csv(d / "abandon_contrasts.csv", index=False)
+        print("\nROUND 4c CONTRASTS (own Holm family, levels "
+              f"{ABANDON_LEVELS}):\n" + ct2.round(4).to_string(index=False))
+    return t
+
+
+def _contrasts(per_seed):
+    from scipy.stats import ttest_ind
     rows = []
     online = per_seed[(per_seed.panel == "online") & (per_seed.eval_rho > 0)]
     control = per_seed[(per_seed.panel == "control") & (per_seed.eval_rho > 0)]
+    control = control[control.eval_rho.isin(set(online.eval_rho))]
     for (pol, dd), a in online.groupby(["policy", "eval_direction"]):
         a = a.groupby("train_seed").DI.mean()
         b = control[(control.policy == pol) & (control.eval_direction == dd)].groupby("train_seed").DI.mean()
@@ -544,14 +613,12 @@ def drift_collect(smoke=False):
             rows.append({"policy": pol, "direction": dd, "online_DI": a.mean(), "control_DI": b.mean(),
                          "diff": a.mean() - b.mean(), "p": ttest_ind(a, b, equal_var=False).pvalue,
                          "n_online": len(a), "n_control": len(b)})
-    if rows:
-        ct = pd.DataFrame(rows).sort_values("p").reset_index(drop=True)
-        k = len(ct)
-        ct["p_holm"] = np.minimum(1, np.maximum.accumulate([(k - i) * pv for i, pv in enumerate(ct.p)]))
-        ct.to_csv(d / "drift_contrasts.csv", index=False)
-        print("\nPRIMARY CONTRAST (online - control, mean over shifted levels; Holm over "
-              f"{k}):\n" + ct.round(4).to_string(index=False))
-    return t
+    if not rows:
+        return None
+    ct = pd.DataFrame(rows).sort_values("p").reset_index(drop=True)
+    k = len(ct)
+    ct["p_holm"] = np.minimum(1, np.maximum.accumulate([(k - i) * pv for i, pv in enumerate(ct.p)]))
+    return ct
 
 
 def drift_figure(smoke=False):

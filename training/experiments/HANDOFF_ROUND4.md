@@ -139,3 +139,21 @@ python round4/r4_fold2.py --stage drift --figure  # drift_vs_calibration.png (2x
   the shifted pool for 300 episodes instead of 200). A retrain value far below online oracle is a bug: stop and report.
 * **Deliverables:** the 200 new task CSVs, the regenerated `drift_curves.csv`, `drift_per_seed.csv`,
   both figures, `eval_access.log`, Slurm logs. Findings follow §5's rule.
+
+## 7. Round 4c — charging human abandonment (810 tasks, ids 1487–2296)
+
+Declared in the docstring of `round4/r4_fold2.py` (`abandon`). The oracle reward paid a human who
+passed and then left as a pass; DI counts that human as lost. `StochasticRewardConfig.
+abandonment_penalty` (default None = unchanged) replaces that pass reward, in training and in
+the posterior arms' outcome model. Penalties −50 and −100 (−100 = the false-positive penalty);
+arms oracle, score-only, posterior, posterior (fixed share) (+ fixed share at no penalty as its
+baseline); DQN and PPO; ρ ∈ {0.2, 0.5, 0.8, 1.0}; online + control; 5 seeds.
+
+```bash
+sbatch --array=1487-2296%25 slurm/r4.sh drift      # after (or with) 4b; offset if ids are capped
+python round4/r4_fold2.py --stage drift --collect  # + abandon_contrasts.csv (own Holm family)
+```
+
+* `drift_contrasts.csv` (primary) is unchanged by 4b/4c: it is restricted to round 4's policies.
+* `eval_access.log` gains 810 lines (2,297 in total). Deliverables: the new task CSVs, regenerated
+  CSVs, `abandon_contrasts.csv`, figures, logs. Findings follow §5's rule.

@@ -245,6 +245,11 @@ class StochasticRewardConfig:
     abandonment: str = "empirical"           # "empirical" | "paper" | "none"
     abandonment_tau: float = 22.0            # seconds; P_leave = 1 - exp(-s/tau)
     abandonment_applies_to_bots: bool = False
+    # A human who passes and then leaves is a lost user in DI (not "kept") but was paid as a
+    # pass until round 4. None keeps that; a number replaces the pass reward of an abandoning
+    # human with this value (friction still charged). -100 = false_positive_penalty: an
+    # abandoned human costs what a wrongly blocked one costs, as DI counts them.
+    abandonment_penalty: float | None = None
 
     def friction(self, threat: int, seconds: float) -> float:
         if self.friction_base is not None:
@@ -335,6 +340,8 @@ def stochastic_reward(user, threat: int, solve: SolveModel,
     terminated = cfg.sample_leave(threat, seconds, rng)
     if terminated:
         info["outcome"] = "human_abandoned"
+        if cfg.abandonment_penalty is not None:
+            r = cfg.abandonment_penalty - friction
     return r, terminated, info
 
 

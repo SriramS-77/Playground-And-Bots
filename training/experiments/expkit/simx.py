@@ -223,6 +223,10 @@ def run_x(
 
             action = policy.select_action(user, n_active)
             r, terminated, info = stochastic_reward(user, action, solve, cfg, rng)
+            if action > 0 and info["outcome"] in ("bot_leaked", "human_passed"):
+                # state v2's counts (no RNG): challenges solved at levels >= 1, highest solved
+                user.challenges_solved = getattr(user, "challenges_solved", 0) + 1
+                user.max_solved = max(getattr(user, "max_solved", 0), action)
 
             result.outcomes[info["outcome"]] += 1
             result.action_hist[action] += 1

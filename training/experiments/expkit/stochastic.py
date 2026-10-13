@@ -143,6 +143,7 @@ class SolveModel:
     human_skill_sd: float = 0.0            # per-user variation in pass probability (logit sd)
     bot_seconds: tuple = BOT_SECONDS       # median seconds per bot attempt
     bot_seconds_sigma: float = BOT_SECONDS_SIGMA   # lognormal spread; 0 = the median, no draw
+    block_top: bool = False                # level 10 is a hard block: nobody, human or bot, passes
 
     def bot_seconds_spent(self, threat: int, rng: random.Random) -> float:
         """Seconds a bot spends on one attempt at `threat`.
@@ -158,6 +159,8 @@ class SolveModel:
 
     def bot_pass_probability(self, bot_strength: int, threat: int) -> float:
         """P(bot gets through when shown `threat`)."""
+        if self.block_top and threat == N_LEVELS - 1:
+            return 0.0
         if threat == 0:
             # Level 0 shows nothing, so nothing can be failed. The logistic alone gives
             # sigma(alpha * 0.5) = 0.68 for B_s = 0 at alpha 1.5: "no challenge" blocked
@@ -224,6 +227,28 @@ DETERMINISTIC_FALLIBLE_HUMANS = SolveModel(deterministic=True, bot_seconds_sigma
 
 GROUNDED = SolveModel(alpha=1.5)
 GROUNDED_MODERN = SolveModel(alpha=1.5, solver_era=1.0)
+#: Sensitivity world (round 4 sensitivity): level 10 blocks everyone; see PRESENTATION_LEAVE.
+GROUNDED_V2 = SolveModel(alpha=1.5, block_top=True)
+
+#: Per-exposure probability that a human ABANDONS when shown a challenge of each level,
+#: before solving it. Searles et al., USENIX Security 2023, Appendix A Tables 7-10: abandons
+#: by captcha type summed over the four groups / ~456 exposures per type (each participant saw
+#: each of 10 types once, in random order), times 1.34 = contextualised rate (120/2345) over the
+#: pooled rate (174/4563), since a deployment is the contextualised setting. Mapping:
+#:   L3 checkbox    reCAPTCHA easy     11/456   L4 easy text     distorted-simple   9/456
+#:   L5 std text    distorted-masked   13/456   L6 image grid    reCAPTCHA hard / hCAPTCHA 13/456
+#:   L7 hard text   distorted-moving   16/456   L8 multi-round   two L7 rounds (assumption)
+#:   L9 game        Arkose x2 + Geetest, mean 28.3/456
+#: L0-2 show a human nothing (no challenge, passive score, honeypot); L10 is the block.
+PRESENTATION_LEAVE = tuple(round(x * 1.34, 4) for x in
+                           (0.0, 0.0, 0.0, 11 / 456, 9 / 456, 13 / 456, 13 / 456, 16 / 456,
+                            1 - (1 - 16 / 456) ** 2, 28.3 / 456, 0.0))
+#: Multiplier on that rate by how many VISIBLE challenges the user has already been shown
+#: (k = 0 is the first). Searles' contextualised per-position hazard, pooled over the two pay
+#: groups (Tables 7-8): 16.6, 7.1, 5.6, then 2.6-3.9 % (positions 4-6) and 0.5-2.4 % (7-10),
+#: divided by the mean hazard 5.1 % and smoothed to 4 steps. Front-loaded: the first challenge
+#: loses the most people; the data do not show abandonment rising with repeated challenges.
+PRESENTATION_POSITION = (3.25, 1.39, 1.10, 0.55)
 
 
 @dataclass(frozen=True)
@@ -250,6 +275,14 @@ class StochasticRewardConfig:
     # human with this value (friction still charged). -100 = false_positive_penalty: an
     # abandoned human costs what a wrongly blocked one costs, as DI counts them.
     abandonment_penalty: float | None = None
+    # "presentation" abandonment (sensitivity world): per-level / per-position rates, drawn
+    # before each attempt at a visible level (presentation, and again before a retry).
+    presentation_leave: tuple = PRESENTATION_LEAVE
+    presentation_position: tuple = PRESENTATION_POSITION
+
+    def presentation_leave_probability(self, threat: int, k: int) -> float:
+        m = self.presentation_position[min(k, len(self.presentation_position) - 1)]
+        return min(1.0, self.presentation_leave[threat] * m)
 
     def friction(self, threat: int, seconds: float) -> float:
         if self.friction_base is not None:
@@ -322,6 +355,8 @@ def stochastic_reward(user, threat: int, solve: SolveModel,
         return r, terminated, info
 
     # --- legitimate user -------------------------------------------------- #
+    if cfg.abandonment == "presentation":
+        return _human_presentation(user, threat, solve, cfg, rng, info)
     skill = getattr(user, "skill", 0.0)
     passed, attempts, seconds = solve.human_outcome(threat, rng, skill)
     info["seconds"] = seconds
@@ -351,3 +386,41 @@ PAPER_EQUIVALENT = StochasticRewardConfig(
     abandonment="paper",
     false_positive_penalty=0.0,   # cannot occur: humans always pass in the paper's model
 )
+
+
+def _human_presentation(user, threat, solve, cfg, rng, info):
+    """Sensitivity world: a human may leave when a VISIBLE challenge is shown (and again
+    before the retry), never after passing. Level 10 under `block_top` blocks with no attempt."""
+    if solve.block_top and threat == N_LEVELS - 1:
+        user.end_session()
+        info["outcome"] = "human_false_positive"
+        return cfg.false_positive_penalty, True, info
+    visible = cfg.presentation_leave[threat] > 0
+    k = getattr(user, "challenges_shown", 0)
+    if visible:
+        user.challenges_shown = k + 1
+    p = solve.human_pass_probability(threat, getattr(user, "skill", 0.0))
+    seconds = 0.0
+    for attempt in range(1, (solve.max_human_attempts if threat else 1) + 1):
+        if visible and rng.random() < cfg.presentation_leave_probability(threat, k):
+            user.end_session()
+            info["seconds"] = seconds
+            info["outcome"] = "human_abandoned"
+            pen = cfg.false_positive_penalty if cfg.abandonment_penalty is None else cfg.abandonment_penalty
+            return pen - cfg.friction(threat, seconds), True, info
+        seconds += solve.human_seconds[threat]
+        if p >= 1.0 or rng.random() < p:
+            user.captchas_solved += 1
+            info["seconds"] = seconds
+            info["outcome"] = "human_passed"
+            r = cfg.max_reward if threat == 0 else cfg.max_reward / 2.0 - cfg.friction(threat, seconds)
+            return r, False, info
+    user.end_session()
+    info["seconds"] = seconds
+    info["outcome"] = "human_false_positive"
+    return cfg.false_positive_penalty - cfg.friction(threat, seconds), True, info
+
+
+#: The sensitivity world's reward config: presentation abandonment, a leaver charged as lost.
+GROUNDED_V2_CFG = StochasticRewardConfig(abandonment="presentation", abandonment_tau=45.0,
+                                         false_positive_penalty=-100.0, abandonment_penalty=-100.0)

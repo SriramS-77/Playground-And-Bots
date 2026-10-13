@@ -102,6 +102,50 @@ class OutcomeModel:
                 block = cfg.max_reward - max(0, T - b) * cfg.overkill
                 self.r_b[b, T] = (leak, leak, block)
         self.delta = self.r_h - np.einsum("b,bto->to", self.rho, self.r_b)   # r_H - E_rho r_B
+        # Sensitivity world: the human side also depends on k, the visible challenges already
+        # shown (capped at the last position bucket). p_hk / r_hk are (K, L, 3); k = 0 is p_h.
+        self.p_hk, self.r_hk = self.p_h[None], self.r_h[None]
+        self.visible = np.zeros(L, dtype=bool)
+        if cfg.abandonment == "presentation":
+            K = len(cfg.presentation_position)
+            self.visible = np.array(cfg.presentation_leave) > 0
+            self.p_hk, self.r_hk = np.zeros((K, L, 3)), np.zeros((K, L, 3))
+            for k in range(K):
+                for T in range(L):
+                    self.p_hk[k, T], self.r_hk[k, T] = self._human_presentation(T, k, solve, cfg)
+            self.p_h, self.r_h = self.p_hk[0], self.r_hk[0]
+            self.delta = self.r_h - np.einsum("b,bto->to", self.rho, self.r_b)
+
+    def human(self, T, k):
+        """(P_H(obs | T, k), r_H(T, k, obs))."""
+        k = min(k, len(self.p_hk) - 1)
+        return self.p_hk[k, T], self.r_hk[k, T]
+
+    @staticmethod
+    def _human_presentation(T, k, solve, cfg):
+        """Mirror of `stochastic._human_presentation`: obs passed_continued / passed_left
+        (= left at presentation, before passing) / failed_gone."""
+        mass, rew = np.zeros(3), np.zeros(3)
+        if solve.block_top and T == N_LEVELS - 1:
+            mass[2], rew[2] = 1.0, cfg.false_positive_penalty
+            return mass, rew
+        visible = cfg.presentation_leave[T] > 0
+        q = cfg.presentation_leave_probability(T, k) if visible else 0.0
+        p = solve.human_pass_probability(T)
+        pen = cfg.false_positive_penalty if cfg.abandonment_penalty is None else cfg.abandonment_penalty
+        s, reach, sec = solve.human_seconds[T], 1.0, 0.0
+        for _ in range((solve.max_human_attempts if T else 1)):
+            mass[1] += reach * q
+            rew[1] += reach * q * (pen - cfg.friction(T, sec))
+            reach *= 1 - q
+            sec += s
+            pass_r = cfg.max_reward if T == 0 else cfg.max_reward / 2.0 - cfg.friction(T, sec)
+            mass[0] += reach * p
+            rew[0] += reach * p * pass_r
+            reach *= 1 - p
+        mass[2] += reach
+        rew[2] += reach * (cfg.false_positive_penalty - cfg.friction(T, sec))
+        return mass, np.divide(rew, mass, out=np.zeros(3), where=mass > 0)
 
     def _human(self, T, solve, cfg):
         """Mirror of `SolveModel.human_outcome` + the human branch of `stochastic_reward`."""
@@ -371,10 +415,13 @@ def posterior_rewards(transitions, om: OutcomeModel, calib: ScoreCalibration | N
     for uid, idxs in by_user.items():
         ts = [transitions[i] for i in idxs]
         if mode == "score_only":
+            k = 0
             for i, t in zip(idxs, ts):
                 o = OBS.index(OBSERVABLE[t.outcome])
                 q = float(np.clip(t.state[0], 0.0, 1.0))
-                rewards[i] = (1 - q) * om.r_h[t.action, o] + q * float(om.rho @ om.r_b[:, t.action, o])
+                r_h = om.human(t.action, k)[1][o]
+                k += int(om.visible[t.action])
+                rewards[i] = (1 - q) * r_h + q * float(om.rho @ om.r_b[:, t.action, o])
                 qb[i] = q
             continue
 
@@ -391,9 +438,12 @@ def posterior_rewards(transitions, om: OutcomeModel, calib: ScoreCalibration | N
         lam = (calib.log_lr([t.state[0] for t in ts], [t.state[1] for t in ts], [t.step for t in ts])
                if calib is not None else np.zeros(len(ts)))
         with np.errstate(divide="ignore"):
+            shown = 0
             for k, (i, t) in enumerate(zip(idxs, ts)):
                 o = OBS.index(OBSERVABLE[t.outcome])
-                hist_h += math.log(om.p_h[t.action, o]) if om.p_h[t.action, o] > 0 else -math.inf
+                ph, rh = om.human(t.action, shown)
+                shown += int(om.visible[t.action])
+                hist_h += math.log(ph[o]) if ph[o] > 0 else -math.inf
                 hist_b = hist_b + np.log(om.p_b[:, t.action, o])
                 a = math.log(1 - pi) + hist_h + lab_h
                 bvec = math.log(pi) + lam[k] + log_rho + hist_b + lab_b
@@ -403,7 +453,7 @@ def posterior_rewards(transitions, om: OutcomeModel, calib: ScoreCalibration | N
                     z = _lse(np.append(bvec, a))
                 q_h = math.exp(a - z)
                 q_b = np.exp(bvec - z)
-                rewards[i] = q_h * om.r_h[t.action, o] + float(q_b @ om.r_b[:, t.action, o])
+                rewards[i] = q_h * rh[o] + float(q_b @ om.r_b[:, t.action, o])
                 qb[i] = float(q_b.sum())
         if strength_out is not None:
             strength_out[uid] = q_b                 # final posterior over (B, b), mass = q(B)

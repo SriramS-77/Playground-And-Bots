@@ -508,10 +508,10 @@ def run_trained(task, smoke):
         return real_run_x(policy, humans, bots, n_bots, **kw)
 
     t0 = time.time()
+    if fixed_share:     # BEFORE `hooked`: it binds posterior_rewards when entered
+        PR.posterior_rewards = pr_fixed
     with E.hooked(hook, spec.get("proxy_cfg"), None, om=om, calib=calib):
         T.run_x = run_x_hooked
-        if fixed_share:
-            PR.posterior_rewards = pr_fixed
         try:
             agent, _ = train_online(algo, p.train_h, p.train_b, p.cache, seed, total, smoke,
                                     solve=C.GROUNDED, cfg=cfg, **spec)

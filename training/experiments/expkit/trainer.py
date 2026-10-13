@@ -17,6 +17,7 @@ Two things are parameterised because the experiments need them:
 
 from __future__ import annotations
 
+import os
 import random
 from collections import deque
 from dataclasses import dataclass, field
@@ -65,7 +66,26 @@ class QNet(nn.Module):
         return getattr(self, f"layer{self.n_layers}")(x)
 
 
+#: State version, chosen per process by the RLC_STATE environment variable (default v1, the
+#: state of rounds 1-4). v2 (round-4 sensitivity): captchas solved counts only levels >= 1, a
+#: separate steps-passed count keeps level 0, last threat is normalised, and the highest level
+#: solved is added. Every v2 count is set in `simx.run_x`; none depends on the humanity score.
+STATE_V2 = os.environ.get("RLC_STATE", "v1") == "v2"
+FULL_DIM = 7 if STATE_V2 else 5
+ABL_DIM = 5 if STATE_V2 else 3
+
+
+def _v2_counts(user):
+    return [np.tanh(getattr(user, "challenges_solved", 0) / 5.0),
+            np.tanh(user.captchas_solved / 5.0),             # steps passed, level 0 included
+            user.last_threat_level / 10.0,
+            getattr(user, "max_solved", 0) / 10.0]
+
+
 def full_features(user, n_active) -> np.ndarray:
+    if STATE_V2:
+        return np.array([user.bot_score, user.avg_bot_score, *_v2_counts(user), n_active / 300.0],
+                        dtype=np.float32)
     s = np.array([user.bot_score, user.avg_bot_score, user.captchas_solved,
                   user.last_threat_level, n_active], dtype=np.float32)
     s[2] = np.tanh(s[2] / 5.0)
@@ -74,6 +94,8 @@ def full_features(user, n_active) -> np.ndarray:
 
 
 def ablation_features(user, n_active) -> np.ndarray:
+    if STATE_V2:
+        return np.array([*_v2_counts(user), n_active / 300.0], dtype=np.float32)
     s = np.array([user.captchas_solved, user.last_threat_level, n_active],
                  dtype=np.float32)
     s[0] = np.tanh(s[0] / 5.0)
@@ -95,7 +117,7 @@ class TrainableDQN:
         self.name = name
         self.needs_bot_score = use_score
         self.features_fn = full_features if use_score else ablation_features
-        self.state_size = 5 if use_score else 3
+        self.state_size = FULL_DIM if use_score else ABL_DIM
         self.hidden = tuple(hidden)
 
         torch.manual_seed(seed)

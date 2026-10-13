@@ -99,7 +99,7 @@ from rlcaptcha.config import N_ACTIONS
 
 from .simx import run_x
 from .stochastic import DETERMINISTIC, PAPER_EQUIVALENT
-from .trainer import TrainLog, full_features
+from .trainer import FULL_DIM, TrainLog, full_features
 
 MEMORY_SIZE = 10_000
 _EPS = 1e-6
@@ -203,7 +203,7 @@ class FeatureNetX(nn.Module):
     """Configurable depth. At `hidden=(128,)` the module layout, parameter shapes and
     state_dict keys match `rlcaptcha.policies.bandits.FeatureNet`."""
 
-    def __init__(self, input_dim: int = 5, hidden: tuple[int, ...] = (128,),
+    def __init__(self, input_dim: int = FULL_DIM, hidden: tuple[int, ...] = (128,),
                  embed_dim: int = 64):
         super().__init__()
         layers: list[nn.Module] = []
@@ -565,7 +565,7 @@ class _NeuralBanditX:
         self.name = name or f"{self.base_name} ({arch.name})"
         torch.manual_seed(seed)
         self.device = torch.device(device or DEFAULT_DEVICE)
-        self.net = FeatureNetX(5, arch.hidden, arch.embed_dim).to(self.device)
+        self.net = FeatureNetX(FULL_DIM, arch.hidden, arch.embed_dim).to(self.device)
         self.optimizer = optim.Adam(self.net.parameters(), lr=arch.lr)
         self.posteriors = [self._new_posterior() for _ in range(n_arms)]
         self.rng = random.Random(seed)

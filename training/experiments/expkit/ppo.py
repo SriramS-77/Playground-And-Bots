@@ -56,7 +56,7 @@ import torch.nn.functional as F
 from . import trainer as T
 from .proxy import ProxyRewardConfig
 from .stochastic import DETERMINISTIC, PAPER_EQUIVALENT
-from .trainer import QNet, TrainLog, ablation_features, full_features
+from .trainer import ABL_DIM, FULL_DIM, QNet, TrainLog, ablation_features, full_features
 from rlcaptcha.config import N_ACTIONS
 
 DQN_WINNER_HIDDEN = (64,)          # fold 2's arch_choice.json: "dqn:64"
@@ -118,7 +118,7 @@ class TrainablePPO:
         self.name = name
         self.needs_bot_score = use_score
         self.features_fn = full_features if use_score else ablation_features
-        self.state_size = 5 if use_score else 3
+        self.state_size = FULL_DIM if use_score else ABL_DIM
         self.hidden = tuple(hidden)
         self.cfg = cfg or PPOConfig()
         torch.manual_seed(seed)
@@ -309,7 +309,7 @@ def train_ppo(
 def load_ppo(path, device="cpu") -> TrainablePPO:
     """A greedy TrainablePPO from a checkpoint written by `TrainablePPO.save`."""
     ck = torch.load(str(path), map_location=device, weights_only=False)
-    agent = TrainablePPO(use_score=ck["state_size"] == 5, hidden=tuple(ck["hidden"]), device=device)
+    agent = TrainablePPO(use_score=ck["state_size"] == FULL_DIM, hidden=tuple(ck["hidden"]), device=device)
     agent.actor.load_state_dict(ck["actor"])
     agent.critic.load_state_dict(ck["critic"])
     return agent.eval_mode()

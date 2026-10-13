@@ -18,8 +18,17 @@ round produces the paper's numbers:
    (levels ≥ 1), steps passed, last level / 10, highest level solved / 10, active users / 300.
    No feature depends on the scorer except the two scores. The round 1–4 state (`--state v1`)
    runs as a sensitivity arm.
-3. **DI against calibration error**, offline (frozen) vs online training, with a **retrain
-   ceiling**, on the **eval block**, 5 seeds, 10 shift levels.
+3. **DI-matched reward** (`GROUNDED_V2_BALANCED_CFG`): a leaked bot and a lost human cost the
+   same (leak −100, block +50, no bot-strength shaping). The old constants made the reward
+   challenge any user with q(bot) above ~0.30; this one from ~0.37–0.42, and its choice at
+   q = 0.5 (a level 7–8 challenge) is DI-optimal. It applies to every reward, oracle included.
+4. **The fixed-share posterior** replaces the plain posterior as the label-free reward: the
+   bot share is frozen at the calibration set's instead of re-estimated by EM each episode
+   (the pilot ablation: EM's share collapsed under covert bots, 0 → ~82 DI when frozen).
+5. **DI against calibration error**, offline (frozen) vs online training, with a **retrain
+   ceiling**, on the **eval block**, 5 seeds, 10 shift levels. The x-axis carries the
+   **step-level AUC** (over every chunk score the policy acts on); session-mean AUC stayed at
+   1.000 under drift while step-level fell to 0.89 on rl_val, so the session figure misleads.
 
 ## 1. Decisions — fixed before any run, do not change
 
@@ -28,7 +37,9 @@ round produces the paper's numbers:
 | D1 | World `GROUNDED_V2` / `GROUNDED_V2_CFG` for every task, training and evaluation | user decision after the pilot (WORLD_V2.md) |
 | D2 | Scorer: cross-fit seed 1, loaded from round 4's drift stage (`results/round4/fold2/drift/`) | round 4's R1, unchanged |
 | D3 | Architectures fixed from round 4: DQN 128-64, PPO 128-64, Thompson h128_64_e64 **mog2**, LinUCB h64_e32 | mog2 chosen on rl_val by the pilot; all three Thompson posteriors still reported offline |
-| D4 | Online rewards: oracle, score-only, posterior. Algorithms DQN, PPO, Thompson | user's scope after the pilot |
+| D4 | Online rewards: oracle, score-only, posterior (fixed share). Algorithms DQN, PPO, Thompson | user's choice after the pilot ablation |
+| D4b | Reward constants `GROUNDED_V2_BALANCED_CFG` for training and evaluation | user's choice: DI-matched, not skewed |
+| D4c | AUC reported at step level (`step_auc` in `drift_metrics.csv`); `pool_auc` (session) kept for reference only | user's choice |
 | D5 | State v2: levels 0.1 … 1.0 (10) + 0; state v1: levels {0.5, 1.0} + 0 | v1 is a sensitivity arm |
 | D6 | Retrain ceiling: DQN and PPO only (oracle, shifted pool from episode 0) | Thompson's would add ~250 h of compute for a reference line |
 | D7 | Primary contrast (state v2): per (algorithm, reward, direction), mean DI over the 10 levels, online − control, Welch over 5 seeds, Holm over 18 | as round 4 |
@@ -75,9 +86,10 @@ first. Thompson needs up to ~2 GB per task (`slurm/r5.sh` asks for 8 GB).
 * `--collect` warns when task CSVs are missing: rerun **those ids**, never new seeds.
 * `results/round4/fold2/drift/eval_access.log` gains one line per evaluating task (1,172 + 251);
   report the count.
-* **Sanity** (state v2, from the pilot on rl_val, so approximate): at ρ = 0, offline DQN/PPO ≈ 100;
-  offline DQN/PPO at covert bots ρ = 1 below 15; posterior online at covert bots ρ = 1 below 15.
-  A large miss: stop and report.
+* **Sanity** (state v2, from the pilot on rl_val with the old reward, so approximate): at ρ = 0,
+  offline DQN/PPO ≈ 100; offline (frozen) DQN/PPO at covert bots ρ = 1 below 20. A large
+  miss: stop and report. The fixed-share and DI-matched reward have no pilot at this budget —
+  report their numbers, do not judge them against the pilot.
 * **Known issue to report, not fix**: in the pilot PPO with the score-only reward (and once with
   oracle) collapsed to a "challenge everyone" policy (DI exactly 39.9: all bots blocked, ~40 %
   of humans kept). Report how many PPO seeds do this (`per_seed.csv`).

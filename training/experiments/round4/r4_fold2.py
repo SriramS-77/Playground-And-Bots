@@ -314,6 +314,9 @@ def drift_metrics(p, levels=LEVELS):
             hm = np.array([np.mean(v) for v in hs if v])
             bm = np.array([np.mean(v) for v in bs if v])
             auc = roc_auc_score(np.r_[np.zeros(len(hm)), np.ones(len(bm))], np.r_[hm, bm])
+            # step-level: every chunk score the policy acts on, not a per-session mean (which
+            # averages away within-session errors and overstates separability)
+            step_auc = roc_auc_score(np.r_[np.zeros(len(hc)), np.ones(len(bc))], np.r_[hc, bc])
             cls = direction if direction != "none" else "bots"
             for c, chunks in (("bots", bc), ("humans", hc)):
                 err = np.mean(1 - chunks) if c == "bots" else np.mean(chunks)
@@ -323,7 +326,7 @@ def drift_metrics(p, levels=LEVELS):
                              "rho": rho, "rho_realised": real, "class": c,
                              "shifted_class": c == cls, "citl_error": float(err),
                              "brier": float(brier), "accuracy_at_0.5": float(acc),
-                             "pool_auc": float(auc)})
+                             "pool_auc": float(auc), "step_auc": float(step_auc)})
     return pd.DataFrame(rows)
 
 

@@ -3,6 +3,9 @@
 PRE-DECLARED (fixed before any run; from the local pilot `round4/sens_world.py`):
   world      GROUNDED_V2 / GROUNDED_V2_CFG (WORLD_V2.md): abandonment when a visible challenge
              is shown (Searles et al. 2023 rates), a leaver costs -100, level 10 a hard block.
+  reward     GROUNDED_V2_BALANCED_CFG (user decision after the pilot): DI-matched -- a leaked bot
+             costs the same gap as a lost human (leak -100, block +50, no strength shaping);
+             challenge threshold q(bot) ~0.37-0.42 instead of ~0.30.
   state      --state v2 (primary): 7 features -- score, running score, challenges solved
              (levels >= 1), steps passed, last level / 10, highest level solved / 10, active
              users / 300. --state v1 (sensitivity): round 1-4's 5 features.
@@ -20,7 +23,11 @@ PRE-DECLARED (fixed before any run; from the local pilot `round4/sens_world.py`)
              online    shift on from episode 100; evaluated at its point and at rho = 0
              retrain   ceiling (state v2, DQN / PPO): oracle reward on the shifted pool
                        from episode 0, evaluated at its point
-             online arms: oracle, score-only, posterior; algorithms DQN, PPO, Thompson
+             online arms: oracle, score-only, posterior (fixed share) -- the posterior with the
+             bot share frozen at the calibration set's (the fix the pilot ablation found: EM's
+             per-episode share collapsed under covert bots); algorithms DQN, PPO, Thompson
+  x-axis     calibration error of the shifted class; STEP-level AUC (every chunk score the policy
+             acts on) beside it -- a session-mean AUC overstates separability
   contrast   primary (state v2): per (algorithm, arm, direction), mean DI over the shifted
              levels, online - control, Welch over seeds, Holm over the 18 contrasts.
 
@@ -61,7 +68,7 @@ OUT = HERE.parent / "results" / "round5" / "fold2" / f"state_{STATE}"
 LEVELS = R4.LEVELS if STATE == "v2" else (0.5, 1.0)
 SEEDS = tuple(range(R.SEEDS))                        # 5
 ALGOS = ("dqn", "ppo", "thompson")
-ARMS = ("oracle", "score-only", "posterior")
+ARMS = ("oracle", "score-only", "posterior (fixed share)")
 OFFLINE = ("dqn", "ppo", "thompson", "linucb", "ablation")
 
 # configure the shared runner for the final evaluation
@@ -82,6 +89,15 @@ def _final_pools():
 
 
 S.pools = _final_pools
+
+
+def _world(name):
+    from expkit.stochastic import GROUNDED_V2, GROUNDED_V2_BALANCED_CFG
+    assert name == "v2", name
+    return GROUNDED_V2, GROUNDED_V2_BALANCED_CFG
+
+
+S.world = _world                                     # v2 world with the DI-matched reward
 
 
 def tasks():
@@ -146,12 +162,12 @@ def collect():
         m = pd.read_csv(mpath)
         m = m[m.pool == "eval"]
         xx = pd.concat([m[((m.direction == d) | (m.direction == "none")) & (m["class"] == d)].assign(direction=d)
-                        for d in R4.DIRECTIONS])[["direction", "rho", "citl_error", "pool_auc"]]
+                        for d in R4.DIRECTIONS])[["direction", "rho", "citl_error", "step_auc"]]
         ps = ps.merge(xx.rename(columns={"direction": "eval_direction", "rho": "eval_rho"}),
                       on=["eval_direction", "eval_rho"], how="left")
     ps.to_csv(OUT / "per_seed.csv", index=False)
     g = ps.groupby(["panel", "policy", "eval_direction", "eval_rho"])
-    t = g[[c for c in cols + ["citl_error", "pool_auc"] if c in ps]].mean()
+    t = g[[c for c in cols + ["citl_error", "step_auc"] if c in ps]].mean()
     t[[c + "_se" for c in cols]] = g[cols].sem().to_numpy()
     t["n_seeds"] = g.size()
     t.to_csv(OUT / "curves.csv")
@@ -179,7 +195,8 @@ def figure(t):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     SURF, INK, INK2, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#e4e3df"
-    arm_style = {"oracle": ("#2a78d6", "s"), "score-only": ("#eb6834", "^"), "posterior": ("#1baf7a", "D")}
+    arm_style = {"oracle": ("#2a78d6", "s"), "score-only": ("#eb6834", "^"),
+                 "posterior (fixed share)": ("#1baf7a", "D")}
     labels = {"dqn": ("DQN", "DQN"), "ppo": ("PPO", "PPO"), "thompson": ("Thompson (mog2)", "Thompson (mog2)")}
     x = "citl_error" if "citl_error" in t and t.citl_error.notna().any() else "eval_rho"
     plt.rcParams.update({"font.size": 9, "figure.facecolor": SURF, "axes.facecolor": SURF,
@@ -217,8 +234,13 @@ def figure(t):
             if c == 0:
                 ax.set_ylabel({"bots": "Covert bots", "humans": "Bot-like humans"}[d]
                               + "\nDI (humans kept % - bots through %)")
-            ax.set_xlabel({"citl_error": f"Calibration error of the shifted class ({d})",
+            ax.set_xlabel({"citl_error": f"Calibration error of the shifted class ({d}); step-level AUC below",
                            "eval_rho": "Shift level rho"}[x])
+            if x == "citl_error" and "step_auc" in q:
+                tk = q[q.panel == "control"].drop_duplicates("eval_rho").sort_values("eval_rho").iloc[::2]
+                ax.set_xticks(tk.citl_error)
+                ax.set_xticklabels([f"{e:.2f}\nAUC {a:.3f}" for e, a in zip(tk.citl_error, tk.step_auc)],
+                                   fontsize=7)
     h, lab = axes[0, 0].get_legend_handles_labels()
     fig.legend(h, lab, loc="lower center", ncol=3, frameon=False, fontsize=8.5)
     fig.suptitle(f"Round 5, fold 2, v2 world, state {STATE} -- eval block, mean over seeds, whiskers SE",

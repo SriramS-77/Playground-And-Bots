@@ -424,3 +424,13 @@ def _human_presentation(user, threat, solve, cfg, rng, info):
 #: The sensitivity world's reward config: presentation abandonment, a leaver charged as lost.
 GROUNDED_V2_CFG = StochasticRewardConfig(abandonment="presentation", abandonment_tau=45.0,
                                          false_positive_penalty=-100.0, abandonment_penalty=-100.0)
+
+#: Round 5's reward in the v2 world, DI-matched: a leaked bot and a lost human cost the same gap
+#: (150 = +50 kept / blocked vs -100 lost / leaked), with no bot-strength shaping (DI does not
+#: weight a bot by strength). The round 3-4 constants (leak -150 - 5 x underestimation, block
+#: +50 - 2.5 x overkill) made the reward challenge from q(bot) ~0.30; this one from ~0.37-0.42,
+#: and its choice at q = 0.5 (a level 7-8 challenge) is the DI-optimal one. Friction is still
+#: charged, which DI does not count.
+GROUNDED_V2_BALANCED_CFG = StochasticRewardConfig(
+    abandonment="presentation", abandonment_tau=45.0, false_positive_penalty=-100.0,
+    abandonment_penalty=-100.0, leakage_penalty=-100.0, underestimation=0.0, overkill=0.0)

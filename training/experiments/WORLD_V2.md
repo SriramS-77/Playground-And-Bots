@@ -57,3 +57,14 @@ smoothed. Abandonment is front-loaded; the data do **not** show it rising with r
   position: 40,000-draw simulation per (level, position), 0 mismatches.
 * Sensitivity results (offline, 2 seeds): DQN/PPO DI within ~4 points between worlds at every
   drift point; the drift conclusions hold in both.
+
+## Reward constants (round 5 onward)
+
+`GROUNDED_V2_BALANCED_CFG` keeps this world and makes the reward DI-matched: leaked bot −100,
+blocked bot +50, no bot-strength shaping (`underestimation = overkill = 0`); kept human +50 at
+level 0 or +25 − friction after a challenge, lost human (blocked or abandoned) −100 − friction.
+A one-step analysis (expected reward per level under q(bot)) puts the first challenge at
+q ≈ 0.37–0.42 (vs ~0.30 with `GROUNDED_V2_CFG`'s round 3–4 constants); at q = 0.5 the best action
+is a level 7–8 challenge, which is also the DI-optimal action there (humans kept ~65 %, bots
+through ~20 %, against 100 % / 100 % when passed). The pilot (`round4/sens_pilot/`) used
+`GROUNDED_V2_CFG`.

@@ -40,9 +40,9 @@ round produces the paper's numbers:
 | D4 | Online rewards: oracle, score-only, posterior (fixed share). Algorithms DQN, PPO, Thompson | user's choice after the pilot ablation |
 | D4b | Reward constants `GROUNDED_V2_BALANCED_CFG` for training and evaluation | user's choice: DI-matched, not skewed |
 | D4c | AUC reported at step level (`step_auc` in `drift_metrics.csv`); `pool_auc` (session) kept for reference only | user's choice |
-| D5 | State v2: levels 0.1 … 1.0 (10) + 0; state v1: levels {0.5, 1.0} + 0 | v1 is a sensitivity arm |
-| D6 | Retrain ceiling: DQN and PPO only (oracle, shifted pool from episode 0) | Thompson's would add ~250 h of compute for a reference line |
-| D7 | Primary contrast (state v2): per (algorithm, reward, direction), mean DI over the 10 levels, online − control, Welch over 5 seeds, Holm over 18 | as round 4 |
+| D5 | State v2: frozen/control evaluated at levels 0.1 … 1.0 (10) + 0; online and retrain agents trained at {0.2, 0.4, 0.6, 0.8, 1.0}. State v1: {0.5, 1.0} + 0 | user's choice: halves compute; calibration error rises smoothly in ρ. v1 is a sensitivity arm |
+| D6 | Retrain ceiling: DQN and PPO only, 3 seeds (oracle, shifted pool from episode 0) | a reference line, not tested; Thompson's would add ~250 h |
+| D7 | Primary contrast (state v2): per (algorithm, reward, direction), mean DI over the 5 trained levels, online − control, Welch over 5 seeds, Holm over 18 | as round 4 |
 | D8 | Evaluation: eval block + external HELD-OUT halves, 20 eval seeds × bot volumes 20–1000 | as round 4 |
 
 ## 2. Run order
@@ -55,9 +55,9 @@ on the cluster from round 4. If missing, run `python round4/r4_fold2.py --stage 
 python preflight.py
 python round5/r5_fold2.py --state v2 --smoke      # toy budget on rl_val; must end "OK (eval block untouched)"
 python round5/r5_fold2.py --state v1 --smoke
-python round5/r5_fold2.py --state v2 --list       # 1172 tasks
+python round5/r5_fold2.py --state v2 --list       # 582 tasks
 python round5/r5_fold2.py --state v1 --list       # 251 tasks
-sbatch --array=0-1171%25 slurm/r5.sh v2           # primary first (offset ids if the scheduler caps arrays)
+sbatch --array=0-581%25 slurm/r5.sh v2            # primary first (offset ids if the scheduler caps arrays)
 sbatch --array=0-250%25  slurm/r5.sh v1
 python round5/r5_fold2.py --state v2 --collect    # curves.csv, per_seed.csv, contrasts.csv, drift_figure.png
 python round5/r5_fold2.py --state v1 --collect
@@ -70,12 +70,12 @@ v1 after v2's task 0 has run. A task whose CSV exists is skipped, so resubmittin
 
 | | tasks | per task | task-hours |
 |---|---|---|---|
-| state v2, DQN/PPO online + retrain | 800 | 5–10 min | ~100 |
-| state v2, Thompson online + control | 315 | 1.5–3 h | ~700 |
+| state v2, DQN/PPO online + retrain | 360 | 5–10 min | ~45 |
+| state v2, Thompson online + control | 165 | 1.5–3 h | ~380 |
 | state v2, offline + controls (21 eval points) | 56 | 0.5–3 h | ~60 |
 | state v1, all | 251 | as above | ~280 |
 
-≈ 1,150 task-hours: **~45 h at 25 wide, ~28 h at 40 wide**. Thompson dominates; submit state v2
+≈ 765 task-hours (state v2 ~485, v1 ~280): **~31 h at 25 wide, ~19 h at 40 wide**. Thompson dominates; submit state v2
 first. Thompson needs up to ~2 GB per task (`slurm/r5.sh` asks for 8 GB).
 
 ## 3. Gates and stop conditions
@@ -84,7 +84,7 @@ first. Thompson needs up to ~2 GB per task (`slurm/r5.sh` asks for 8 GB).
 * **Scorer**: tasks load round 4's seed-1 scorer; if any task tries to refit, stop and report.
 * Each online/control/retrain task asserts it saw exactly 300 training episodes; a failure is a bug.
 * `--collect` warns when task CSVs are missing: rerun **those ids**, never new seeds.
-* `results/round4/fold2/drift/eval_access.log` gains one line per evaluating task (1,172 + 251);
+* `results/round4/fold2/drift/eval_access.log` gains one line per evaluating task (582 + 251);
   report the count.
 * **Sanity** (state v2, from the pilot on rl_val with the old reward, so approximate): at ρ = 0,
   offline DQN/PPO ≈ 100; offline (frozen) DQN/PPO at covert bots ρ = 1 below 20. A large

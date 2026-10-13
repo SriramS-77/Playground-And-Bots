@@ -15,20 +15,22 @@ PRE-DECLARED (fixed before any run; from the local pilot `round4/sens_world.py`)
   data       train on the rl block (+ external INJECT halves when shifted); evaluate on the
              EVAL BLOCK (+ HELD-OUT halves) -- opened and logged by every evaluating task.
   shift      round 4's: a fraction rho of bots -> advanced web-bots, or of humans -> Balabit;
-             LEVELS 0.1..1.0 (state v2) / {0.5, 1.0} (state v1); x-axis = calibration error.
+             evaluation LEVELS 0.1..1.0 (state v2) / {0.5, 1.0} (state v1); online and retrain
+             agents TRAINED at 0.2, 0.4, 0.6, 0.8, 1.0 (state v2; halves compute -- the error
+             rises smoothly in rho) / {0.5, 1.0} (state v1); x-axis = calibration error.
   kinds      metrics   the x-axis (state v2 only)
              offline   DQN, PPO, Thompson, LinUCB, DQN without H-score (5 seeds) + statics,
                        oracle reward, 200 episodes, evaluated frozen at every point
              control   online protocol (300 episodes) without the shift, at every point
              online    shift on from episode 100; evaluated at its point and at rho = 0
-             retrain   ceiling (state v2, DQN / PPO): oracle reward on the shifted pool
+             retrain   ceiling (state v2, DQN / PPO, 3 seeds): oracle reward on the shifted pool
                        from episode 0, evaluated at its point
              online arms: oracle, score-only, posterior (fixed share) -- the posterior with the
              bot share frozen at the calibration set's (the fix the pilot ablation found: EM's
              per-episode share collapsed under covert bots); algorithms DQN, PPO, Thompson
   x-axis     calibration error of the shifted class; STEP-level AUC (every chunk score the policy
              acts on) beside it -- a session-mean AUC overstates separability
-  contrast   primary (state v2): per (algorithm, arm, direction), mean DI over the shifted
+  contrast   primary (state v2): per (algorithm, arm, direction), mean DI over the 5 trained
              levels, online - control, Welch over seeds, Holm over the 18 contrasts.
 
     python round5/r5_fold2.py --state v2 --list | --task N | --collect | --smoke
@@ -65,7 +67,9 @@ import pandas as pd                                  # noqa: E402
 
 R4, C, R = S.R4, S.C, S.R
 OUT = HERE.parent / "results" / "round5" / "fold2" / f"state_{STATE}"
-LEVELS = R4.LEVELS if STATE == "v2" else (0.5, 1.0)
+LEVELS = R4.LEVELS if STATE == "v2" else (0.5, 1.0)          # evaluation points (frozen / control)
+TRAIN_LEVELS = (0.2, 0.4, 0.6, 0.8, 1.0) if STATE == "v2" else LEVELS   # online / retrain training points
+RETRAIN_SEEDS = (0, 1, 2)                            # the ceiling is a reference line, not tested
 SEEDS = tuple(range(R.SEEDS))                        # 5
 ALGOS = ("dqn", "ppo", "thompson")
 ARMS = ("oracle", "score-only", "posterior (fixed share)")
@@ -107,10 +111,10 @@ def tasks():
     t += [{"kind": "control", "algo": a, "arm": arm, "seed": s} for a in ALGOS for arm in ARMS
           for s in SEEDS]
     t += [{"kind": "online", "algo": a, "arm": arm, "direction": d, "rho": rho, "seed": s}
-          for a in ALGOS for arm in ARMS for d in R4.DIRECTIONS for rho in LEVELS for s in SEEDS]
+          for a in ALGOS for arm in ARMS for d in R4.DIRECTIONS for rho in TRAIN_LEVELS for s in SEEDS]
     if STATE == "v2":
         t += [{"kind": "retrain", "algo": a, "arm": "oracle", "direction": d, "rho": rho, "seed": s}
-              for a in ("dqn", "ppo") for d in R4.DIRECTIONS for rho in LEVELS for s in SEEDS]
+              for a in ("dqn", "ppo") for d in R4.DIRECTIONS for rho in TRAIN_LEVELS for s in RETRAIN_SEEDS]
     return t
 
 
@@ -173,7 +177,7 @@ def collect():
     t.to_csv(OUT / "curves.csv")
     rows = []
     on = ps[(ps.panel == "online") & (ps.eval_rho > 0)]
-    ctl = ps[(ps.panel == "control") & (ps.eval_rho > 0) & ps.eval_rho.isin(LEVELS)]
+    ctl = ps[(ps.panel == "control") & (ps.eval_rho > 0) & ps.eval_rho.isin(TRAIN_LEVELS)]
     for (pol, d), a in on.groupby(["policy", "eval_direction"]):
         a = a.groupby("train_seed").DI.mean()
         b = ctl[(ctl.policy == pol) & (ctl.eval_direction == d)].groupby("train_seed").DI.mean()

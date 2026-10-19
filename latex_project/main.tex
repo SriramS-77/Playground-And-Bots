@@ -14,15 +14,14 @@
 \usepackage{tikz}
 \usetikzlibrary{positioning,arrows.meta,fit}
 
-% IEEE OJCS Specific Color Definitions
 \AtBeginDocument{\definecolor{tmlcncolor}{cmyk}{0.93,0.59,0.15,0.02}\definecolor{NavyBlue}{RGB}{0,86,125}}
-
-% Logo Placeholders (Required by ieeetj)
 \def\OJlogo{\vspace{-4pt}$<$Society logo(s) and publication title will appear here.$>$}
 \def\seclogo{\vspace{10pt}$<$Society logo(s) and publication title will appear here.$>$}
-
 \def\authorrefmark#1{\ensuremath{^{\textbf{#1}}}}
-\newcommand{\todo}[1]{\textcolor{red}{[#1]}}
+\renewcommand{\topfraction}{0.95}\renewcommand{\dbltopfraction}{0.95}
+\renewcommand{\textfraction}{0.05}\renewcommand{\floatpagefraction}{0.75}
+\renewcommand{\dblfloatpagefraction}{0.75}\setcounter{dbltopnumber}{3}
+\newcommand{\PH}[1]{\textcolor{red}{[#1]}}
 
 \begin{document}
 
@@ -30,7 +29,7 @@
 \reviseddate{XX Month, XXXX}
 \accepteddate{XX Month, XXXX}
 \publisheddate{XX Month, XXXX}
-\currentdate{13 October, 2026}
+\currentdate{14 October, 2026}
 \doiinfo{XXXX.2026.1234567}
 
 \title{Balancing Security and Usability: Adaptive CAPTCHA Orchestration via Reinforcement Learning}
@@ -39,83 +38,137 @@
 \affil{Affiliation Omitted for Double-Anonymized Review}
 
 \begin{abstract}
-Websites increasingly receive a continuous bot-likelihood score for each user instead of a pass/fail decision, but turning that score into an action (no challenge, a CAPTCHA of some difficulty, or a block) is still left to hand-written rules. We study whether reinforcement learning (RL) can learn this mapping over an 11-level action ladder. A small LSTM \emph{Humanity Scorer} reads mouse dynamics (displacement, inter-event time, speed and acceleration); its calibrated output, a running session score, challenge history and the number of active users form the state of a DQN, PPO, Neural-LinUCB or Neural Thompson Sampling controller. All evaluation is simulated: bots solve challenges stochastically (an item-response model), and human pass rates, solve times and abandonment are taken from published CAPTCHA user studies, so usability is \emph{modelled, not measured}. On a held-out block of recordings never used for scorer or policy training, DQN reaches a Discrimination Index (humans kept \% $-$ bots through \%) of 98.9 (95\% CI $\pm$0.4 over 5 training seeds) against 78.7 for the best static threshold policy; removing the Humanity Score drops it to 23.6. When challenges are solved stochastically, Thompson Sampling matches or exceeds DQN (91.5 vs 88.6). We also report the limits of the approach: rewards computed only from observable challenge outcomes collapse to ``never challenge'', and when the scorer is miscalibrated (covert bots or bot-like humans), frozen RL policies degrade faster than static thresholds, while online training recovers only when its reward does not inherit the scorer's error.
+Risk-based bot detectors return a continuous score for each user rather than a decision, yet turning that score into an action (no challenge, a CAPTCHA of some difficulty, or a block) is still left to hand-written rules that trade security against usability. We study whether reinforcement learning (RL) can learn this mapping over an 11-level intervention ladder. 
+A compact LSTM \emph{Humanity Scorer} reads mouse dynamics (displacement, inter-event time, speed and acceleration) and outputs a calibrated bot probability every 10\,s. 
+With a running session score, challenge history and the number of active users, it forms the state of a DQN, PPO, Neural-LinUCB or Neural Thompson Sampling controller. Controllers are trained and evaluated in a stochastic simulator in which bots solve challenges with an item-response model and human pass rates and solve times come from published CAPTCHA user studies, so usability is \emph{modelled, not measured}. 
+On held-out recordings, PPO and DQN reach a Discrimination Index (humans kept \% $-$ bots through \%) of 99.8 and 97.8 ($\pm$0.6 and $\pm$1.2, 95\% CI over 5 seeds) against 95.5 for the best static threshold policy. 
+When covert bots shift the scorer's calibration, frozen RL policies degrade faster than static thresholds. 
+Training PPO online only once a label-free change detector fires keeps 99.8 without drift, alarms within 1--5 episodes of the attack, and reaches 85.1 and 82.0 at half and full shift, matching or exceeding online training with labels (83.3 and 82.6) and far above the best static policy (39.5 at full shift). RL can thus replace hand-tuned thresholds if the score is calibrated and monitored for drift; attacks that destroy the score's ranking remain out of reach.
 \end{abstract}
 
 \begin{IEEEkeywords}
-Behavioural biometrics, bot detection, CAPTCHA, calibration, contextual bandits, mouse dynamics, reinforcement learning, web security.
+Behavioural biometrics, bot detection, CAPTCHA, change detection, contextual bandits, mouse dynamics, online learning, probability calibration, reinforcement learning, web security.
 \end{IEEEkeywords}
 
 \maketitle
 
 \section{INTRODUCTION}
-\IEEEPARstart{A}{utomated} traffic is now close to half of all web requests, and 37\% of 2024 traffic was attributed to malicious bots \cite{imperva2025}. Bots scrape content \cite{mazilu2022}, post spam \cite{ferrara2016} and stuff credentials \cite{ba2021}. The standard defence is the CAPTCHA \cite{von_2003,guerar2021}, but every challenge also costs legitimate users time and some of them leave: in a large field study, humans solved distorted-text CAPTCHAs correctly only 71--98\% of the time depending on the scheme \cite{bursztein_humans_2010}, and in a recent study of modern CAPTCHAs a substantial share of participants abandoned the task when a challenge was presented \cite{captcha_study_2023}. At the same time, vision-language models now solve many visual challenges \cite{qi2026,wu2025mca_bench}, and reCAPTCHA v2 has been broken with off-the-shelf detectors \cite{plesner2024yolo}.
+\IEEEPARstart{A}{utomated} traffic is now over half of all web requests, and 37\% of 2024 traffic was attributed to malicious bots \cite{imperva2025}. Bots scrape content, post spam \cite{ferrara2016} and stuff credentials \cite{ba2021}. The standard defence is the CAPTCHA \cite{von_2003,guerar2021}, but every challenge also costs legitimate users time, and some fail or leave: in a large-scale study of 318{,}000 CAPTCHAs, humans solved distorted-text schemes correctly only 70--98\% of the time \cite{bursztein_humans_2010}, and a recent study of modern CAPTCHAs found that a substantial share of participants abandoned a task when a challenge appeared \cite{captcha_study_2023}. Meanwhile, vision-language models solve many visual challenges \cite{qi2026,wu2025mca_bench}, and reCAPTCHA v2 has been broken with fine-tuned object detectors \cite{plesner2024yolo}.
 
-Risk-based services such as reCAPTCHA v3 therefore return a continuous score rather than a decision \cite{reCAPTCHA}. That moves the hard part to the website operator, who must decide what to do with a score of, say, 0.6. Three things make this decision hard in practice. \emph{(i) One threshold does not fit every context}: a score that justifies frictionless browsing may be inadequate for a payment page \cite{sepczuk_2018}, and fixed thresholds become stale as adversaries adapt \cite{sethi_2018,sivakorn_recaptcha_2016}. \emph{(ii) Scores are not comparable across providers}: each detector has its own undisclosed calibration, so combining them is ad hoc \cite{yousef_2023}. \emph{(iii) The trade-off is sequential}: a mild first challenge can be escalated if the user still looks suspicious, and a policy that challenges early can relax later. Rule-based web application firewalls \cite{cloudArmour} encode these choices by hand.
+Risk-based services such as reCAPTCHA v3 therefore return a continuous score rather than a verdict \cite{reCAPTCHA}, which moves the hard decision to the website operator: what should happen to a user whose score is 0.6? Three properties make this decision difficult. \emph{One threshold does not fit every context}: a score that justifies frictionless browsing may be inadequate for a payment page \cite{sepczuk_2018}, and fixed thresholds become stale as adversaries adapt \cite{sethi_2018,sivakorn_recaptcha_2016}. \emph{Scores are not comparable across providers}: each detector has its own undisclosed calibration, so combining them becomes ad-hoc \cite{yousef_2023}. \emph{The trade-off is sequential}: a mild first challenge can be escalated if a user still looks suspicious, and a policy that challenges early can relax later. Rule-based web application firewalls \cite{cloudArmour} encode these choices by hand, and the CAPTCHA schemes they trigger are each a single challenge type \cite{umar_2022} rather than a graded response.
 
-This paper asks whether an RL controller can learn the score-to-action mapping, and what can and cannot be concluded from a simulation-based evaluation of it. Our contributions are:
+We ask whether an RL controller can learn the score-to-action mapping, and what a simulation-based evaluation can and cannot establish about it. Our contributions are:
 \begin{enumerate}[label=\roman*), leftmargin=*, itemsep=1pt]
-\item \textbf{A graduated orchestration formulation.} The controller chooses one of 11 levels (0: no challenge; 1--9: increasingly strong challenges; 10: block) every 10\,s of a session, using a behavioural score and session and server context (Section~\ref{sec:method}).
-\item \textbf{A compact, calibrated behavioural scorer} (6{,}081 parameters, temperature-scaled), chosen by grouped cross-validation, together with the data protocol needed to avoid leakage between scorer, policy and evaluation (Section~\ref{sec:data}).
-\item \textbf{A literature-grounded simulator} in which bots solve challenges with a probability that depends on their capability, and human pass rates, solve times and abandonment rates come from published user studies \cite{bursztein_humans_2010,captcha_study_2023} (Section~\ref{sec:env}).
-\item \textbf{An evaluation with confidence intervals} of DQN, PPO, Neural-LinUCB and Neural Thompson Sampling against static threshold policies and an ablation without the score, on held-out recordings over 5 training seeds (Section~\ref{sec:results}).
-\item \textbf{Negative results that bound deployment}: label-free rewards, and the behaviour of offline and online-trained policies when the scorer's calibration drifts (Sections~\ref{sec:deploy}--\ref{sec:drift}).
+\item \textbf{A graduated orchestration formulation.} Every 10\,s of a session the controller chooses one of 11 levels (0: no challenge; 1--9: increasingly demanding challenges; 10: strongest fallback), from a behavioural score and session and server context (Section~\ref{sec:method}).
+\item \textbf{A compact, calibrated behavioural scorer} (6{,}081 parameters), which matches or exceeds the mouse-movement detector of Iliou et al.\ \cite{iliou_2021} on their benchmark after fine-tuning (Sections~\ref{sec:method}-\ref{sec:scorer} and \ref{sec:results}-\ref{sec:res_scorer}).
+\item \textbf{A literature-grounded simulator}: bots solve challenges with a capability-dependent probability, and human pass rates and solve times come from published user studies \cite{bursztein_humans_2010,captcha_study_2023} (Section~\ref{sec:method}-\ref{sec:env}).
+\item \textbf{An evaluation with confidence intervals} of DQN, PPO, Neural-LinUCB and Neural Thompson Sampling against static thresholds and a no-score ablation, on held-out recordings, under varying human and bot volumes (Section~\ref{sec:results}-\ref{sec:res_main}).
+\item \textbf{Results that bound deployment}: rewards that need no labels, and frozen offline versus online training comparison when the scorer's calibration drifts (Section~\ref{sec:results}-\ref{sec:drift}).
 \end{enumerate}
 
-\textbf{Scope.} Table~\ref{tab:scope} separates what was evaluated from what is only proposed. In particular, no real CAPTCHA provider, user study, server-load model or adaptive attacker is part of the evaluation; we therefore make no claim about denial-of-service mitigation in the sense of server resources, only about robustness to the volume and composition of bot traffic.
-
-\begin{table}[!t]
-\caption{Scope of the Evaluation}
-\label{tab:scope}
-\centering
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{p{0.30\columnwidth}p{0.62\columnwidth}}
-\toprule
-\textbf{Status} & \textbf{Component} \\
-\midrule
-Evaluated & LSTM scorer on our recordings; RL and static policies in simulation; 11 abstract levels with literature-based human/bot outcome models; bot volumes 20--1000; scorer-calibration drift with external data \\
-Implemented, not evaluated & Playground website and telemetry collection; web SDK \\
-Proposed only & Mobile SDKs, device fingerprinting, routing to real CAPTCHA providers, server-load (DoS) features, adaptive/VLM attackers, user study \\
-\bottomrule
-\end{tabular}
-\end{table}
+\vspace{-5pt}
+% \subsection{Scope and Assumptions}
+% The evaluation covers the Humanity Scorer, on our recordings and on a public web-bot benchmark, and RL and static policies in a simulator whose human and bot outcomes come from published measurements, under human volumes of 50--250, bot volumes up to 1000, and scorer drift built from external and replayed data. The playground website and its browser telemetry are implemented but serve only for data collection. Mobile SDKs, device fingerprinting, routing to real CAPTCHA providers, server-load features, adaptive or VLM-based attackers and a user study belong to the proposed architecture but are not evaluated. We therefore make no claim about denial-of-service mitigation in the sense of server resources, only about robustness to the volume and composition of bot traffic.
 
 \section{RELATED WORK}
-\textbf{CAPTCHA security and usability.} CAPTCHAs were introduced as hard AI problems \cite{von_2003} and have been surveyed extensively \cite{guerar2021,umar_2022}. Their usability cost is well documented: Yan and El~Ahmad analysed design factors \cite{yan2008captcha}, Bursztein et al.\ measured human accuracy and solve times on 318{,}000 CAPTCHAs from 21 schemes \cite{bursztein_humans_2010}, and Searles et al.\ measured solve times, preferences and abandonment for modern challenges with 1{,}400 participants \cite{captcha_study_2023}. On the attack side, text CAPTCHAs have generic solvers \cite{bursztein2014new}, reCAPTCHA has been bypassed with audio and image models \cite{sivakorn_recaptcha_2016,plesner2024yolo}, its v3 score has been gamed with RL \cite{akrout2019}, and multimodal models solve visual-reasoning challenges \cite{qi2026,wu2025mca_bench,clip_2021}.
+\subsection{CAPTCHA Security and Usability}
+CAPTCHAs were introduced as hard AI problems \cite{von_2003} and have been surveyed extensively \cite{guerar2021,umar_2022}. Yan and El~Ahmad analysed usability factors in CAPTCHA design \cite{yan2008captcha}; Bursztein et al.\ measured human accuracy and solve time on 21 schemes \cite{bursztein_humans_2010}; and Searles et al.\ measured solve times, preferences and abandonment for modern challenges with 1{,}400 participants \cite{captcha_study_2023}. On the attack side, text CAPTCHAs have generic solvers \cite{bursztein2014new}, reCAPTCHA has been bypassed with browser cookies and history \cite{sivakorn_recaptcha_2016} and with image models \cite{plesner2024yolo}, its v3 score has been gamed with RL \cite{akrout2019}, and multimodal models solve visual-reasoning challenges \cite{qi2026,wu2025mca_bench}.
 
-\textbf{Behavioural biometrics.} Mouse dynamics separate humans from bots and individuals from each other \cite{khan_2023,shen_2013,antal_2019}. Human motion follows Fitts' law with motor noise \cite{fittslaw2019}, while bots range from straight-line movers to B\'ezier-curve and learned trajectory generators \cite{bezier2025,bezier_bots_2022,antal_2021_sapi}. Iliou et al.\ combined web logs and mouse biometrics to detect advanced web bots \cite{iliou_2021}; Acien et al.\ did so with touch and sensor data \cite{acien_2021}. Recurrent networks are a common choice for such sequences \cite{hochreiter_lstm_1997,wei2021deeplearning}.
+\vspace{-5pt}
+\subsection{Behavioural Biometrics}
+Mouse dynamics distinguish humans from bots \cite{bezier_bots_2022,iliou_2021} and individuals from each other \cite{khan_2023,shen_2013}. Human motion follows Fitts' law with motor noise \cite{fittslaw2019}, while bots range from straight-line movers to B\'ezier-curve and learned trajectory generators \cite{bezier2025,bezier_bots_2022,antal_2021_sapi}. Iliou et al.\ detected advanced web bots by fusing a web-log classifier with a mouse-movement classifier \cite{iliou_2021}; Acien et al.\ used touch and sensor data \cite{acien_2021}. Recurrent networks such as the LSTM \cite{hochreiter_lstm_1997} have been used to detect bots from mouse-movement sequences \cite{he_seq_2021}.
 
-\textbf{Adaptive challenges and RL.} Aura-CAPTCHA uses RL and GANs to adapt challenge difficulty \cite{aura_captcha_2025}; it does not orchestrate a graded ladder ending in a block. Contextual bandits choose an action from features to maximise immediate reward \cite{li_linucb_2010,russo_ts_2018}; DQN \cite{mnih_dqn_2015} and PPO \cite{schulman_ppo_2017} optimise discounted return in a Markov decision process \cite{sutton2018reinforcement}, and RL has been applied to fraud detection \cite{cui_2025} and anomaly detection \cite{huang_2018}. Publicly available labelled human/bot interaction data remain scarce \cite{mvula_2023}, which is why we report data sizes and leakage controls in detail.
+\vspace{-5pt}
+\subsection{Adaptive Challenges and RL}
+Aura-CAPTCHA uses RL and GANs to adapt challenge difficulty \cite{aura_captcha_2025} but does not orchestrate a graded response ladder. Contextual bandits choose an action from features to maximise immediate reward \cite{li_linucb_2010,russo_ts_2018}, while DQN \cite{mnih_dqn_2015} and PPO \cite{schulman_ppo_2017} optimise discounted return in a Markov decision process \cite{sutton2018reinforcement}. RL approaches have been applied to fraud and anomaly detection \cite{cui_2025}. Labelled security data, including human/bot interaction data, remain scarce \cite{mvula_2023}, which is why we report data sizes, splits and leakage controls in detail.
 
 \section{METHODOLOGY}
 \label{sec:method}
 
 \subsection{System Architecture}
-Fig.~\ref{fig:system_architecture} shows the four tiers. \emph{Tier 1} (client telemetry) collects cursor coordinates and timestamps in the browser and normalises them to a platform-independent JSON format; only the web version exists. \emph{Tier 2} (Humanity Scorer) converts each 10-second chunk of telemetry into a bot probability; any scorer with a probabilistic output, including a commercial one, can be substituted. \emph{Tier 3} (RL controller) maps the score and context to a level. \emph{Tier 4} (fulfilment) would route each level to a concrete challenge; in this paper levels are simulated (Section~\ref{sec:env}), not served by real providers.
+Fig.~\ref{fig:system_architecture} shows the four tiers. \emph{Tier 1} (client telemetry) collects cursor coordinates and timestamps in the browser and converts them into a platform-independent feature. \emph{Tier 2} (Humanity Scorer) converts each 10\,s chunk of telemetry into a bot probability; any scorer with a probabilistic output, including a commercial one, can be substituted. \emph{Tier 3} (RL controller) maps the score and context to a level. \emph{Tier 4} (fulfilment) routes each level to a concrete challenge; in this paper the outcome of each level is simulated (Section~\ref{sec:method}-\ref{sec:env}).
 
 \begin{figure}[!t]
   \centering
   \includegraphics[width=0.95\columnwidth]{images/system_architecture.png}
-  \caption{Modular architecture. Tiers 1--3 are implemented; tier 4 is simulated in this paper (Table~\ref{tab:scope}).}
+  \caption{Modular architecture. Tiers 1--3 are implemented; the outcome of tier 4 is simulated.}
   \label{fig:system_architecture}
 \end{figure}
 
-\subsection{Data Collection}
+\vspace{-5pt}
+\subsection{Datasets}
 \label{sec:data}
-A playground blog website (navigation, form filling, commenting) recorded \texttt{mousemove} events $(x, y, t)$ with a minimum gap of 10\,ms. Each session lasted about 120\,s. Four bot generators of increasing sophistication interacted with the same site: \emph{naive} bots that jump directly to targets, \emph{human-like} bots that move in straight lines at constant speed, \emph{mimic} bots that follow B\'ezier curves with varying speed \cite{antal_2021_sapi}, and \emph{fallible} bots that add overshoots, hesitations and corrections. In total we have \textbf{156 recordings}: 44 human and 112 bot recordings, 42{,}913 movements, from two collection campaigns three months apart. The 44 human recordings come from \textbf{3 participants}.
+\subsubsection{Our Recordings}
+A playground blog website (navigation, reading, form filling) recorded \texttt{mousemove} events $(x, y, t)$ with a minimum gap of 10\,ms; each session lasted about 120\,s.
 
-\textbf{Ethics.} The study followed established ethical guidelines for research with human participants. Participants gave informed consent, and only anonymous cursor trajectories were stored; no personally identifiable information was retained.
+\vspace{-15pt}
+\subsubsection{Bot Hierarchy}
+We implemented four levels of automated agents that perform the same tasks on the same site:
+\begin{itemize}[leftmargin=*, itemsep=1pt]
+\item \emph{Naive bots} perform only the task (clicking a button, filling a form) with no attempt to look human; the cursor teleports directly to each target.
+\item \emph{Human-like bots} move the cursor along straight lines instead of teleporting, but at constant speed, without realistic acceleration.
+\item \emph{Mimic bots} follow non-straight B\'ezier curves with varying speed to emulate human motor characteristics \cite{bezier2025,bezier_bots_2022}.
+\item \emph{Fallible bots}, the most advanced, add human-like imperfections: occasional errors, hesitations and corrections such as overshooting a target and adjusting.
+\end{itemize}
+Human-like mouse movement lets advanced bots evade movement-based bot detectors \cite{bezier_bots_2022}, which is why the upper tiers imitate human motion rather than only completing the task. The dataset has 156 recordings (44 human, 112 bot; 42{,}913 movements); the human recordings come from 3 participants. The study followed established ethical guidelines for research with human participants: participants gave informed consent, and only anonymous cursor trajectories were stored, with no personally identifiable information retained.
 
-\textbf{Partition (answers R1.2).} The split is made \emph{at the recording level, before any windowing or augmentation}, so no window of a recording appears in two blocks. Recordings are divided into a scorer block, an RL block and a held-out \emph{evaluation block} using rotating folds; the results in this paper use fold~2, whose evaluation block has 14 human and 36 bot recordings and is never used to fit or select the scorer or the policy. Within the scorer block we cross-fit five scorers so that every RL training session is scored by a model that did not see it. Every opening of the evaluation block is logged. No augmentation is used (Section~\ref{sec:scorer}). With three participants, the human data cannot support claims about the general population; we report a leave-one-campaign-out check as the closest proxy for unseen users.
+\vspace{-15pt}
+\subsubsection{Partition}
+Recordings are first split into a scorer block, an RL block and a held-out \emph{evaluation block}. The evaluation block has 14 human and 36 bot recordings and is never used to fit or select any model, avoiding data snooping \cite{arp_2022}. The scorer block alone (54 recordings) is too little data to train the scorer stably, so the scorer and RL blocks are combined into one training pool, and cross-fitting \cite{wolpert_1992,chernozhukov_2018} lets this pool serve both the scorer and the RL policy without leakage. The pool is split by recording into five parts; five scorers are each trained on four parts and score the RL-block recordings of the remaining part. The policy is trained on these out-of-fold scores, so no RL training session is scored by a model that saw it; otherwise the policy would learn from scores that are more confident than any it meets in deployment. For evaluation, one scorer is refitted on the whole pool and scores only the evaluation block.
 
+\vspace{-15pt}
+\subsubsection{Web Bot Detection Dataset}
+The web bot detection dataset of Iliou et al.\ \cite{iliou_2021} contains browser sessions on a Wikipedia-mirror site, with mouse movements and web logs, from humans, \emph{moderate} bots (browser fingerprint and scripted movement) and \emph{advanced} bots (browser fingerprint and human-like movement). Phase~1 has 50 human, 50 moderate and 50 advanced sessions and two benchmarks with fixed session-level splits: D1 (humans + moderate bots) and D2 (humans + advanced bots), each with 35+35 training and 15+15 test sessions. Phase~2 has sessions from 28 other users and new, separate bot sessions. We use Phase~1's moderate and advanced bots, through D1 and D2, for the benchmark comparison and fine-tuning (Section~\ref{sec:method}-\ref{sec:scorer}), and only Phase~2's advanced bots, as covert bots, in the drift study (Section~\ref{sec:results}-\ref{sec:drift}). Phase~2's moderate bots were excluded after a local check: our scorer failed against them and their ranking overlaps with humans, whereas the calibration-shift study needs bots whose scores move but whose ranking above humans survives. This was an accepted flaw of the Humanity Scorer in this experiment, since training data was not diverse enough to adapt to unseen data without finetuning.
+
+\vspace{-15pt}
+\subsubsection{Balabit Mouse Dynamics Challenge}
+The Balabit Mouse Dynamics Challenge \cite{balabit_2016} contains remote-desktop mouse sessions of 10 users. It contains only humans, so we use it only as a population of unseen humans.
+
+\vspace{-15pt}
+\subsubsection{Preparation of External Data}
+\begin{itemize}[leftmargin=*, itemsep=1pt]
+\item \emph{Cleaning (all external data):} Events with pixel coordinates outside $[0,10^4]$ are dropped, and so is any event less than 10\,ms after the previous kept one, resampling every source to our logger's rate.
+\item \emph{Benchmark (Phase~1 D1/D2):} Each session is cut into consecutive 10\,s chunks; chunks with fewer than two events are dropped. Sessions and splits are the dataset's own.
+\item \emph{Drift study (Phase~2 advanced bots, Balabit):} Only the first 120\,s of a session is kept, and a session needs at least 30\,s and 20 events to qualify. This leaves 120 advanced-bot sessions. Balabit is capped at 30 qualifying sessions (drawn with fixed random seed) per user, so that no user dominates: 300 sessions from 10 users.
+\item \emph{Splitting for online training and evaluation:} Each population is split once: the advanced-bot sessions into two halves of 60 by a fixed-seed shuffle, and Balabit by user, 5 users (150 sessions) per half, so evaluation humans are people never seen in training. One half supplies the covert bots or bot-like humans mixed into online training traffic, the other only into evaluation traffic.
+\end{itemize}
+
+
+\vspace{-5pt}
 \subsection{Humanity Scorer}
 \label{sec:scorer}
-\textbf{Input.} A chunk (the movements in one 10\,s step) is converted to per-event features $[\Delta x, \Delta y, \Delta t, v, a]$: displacement, inter-event time, speed $v=\lVert(\Delta x,\Delta y)\rVert/\Delta t$ and its first difference $a$. Absolute screen position is deliberately not used, because it encodes page layout rather than behaviour. Features are standardised with training-set statistics and cut into windows of 32 events; the last window is padded and a sixth binary channel marks padded steps (Fig.~\ref{fig:lstm}).
+\subsubsection{Input}
+A chunk is converted to per-event features $[\Delta x, \Delta y, \Delta t, v, a]$: displacement, inter-event time, speed $v=\lVert(\Delta x,\Delta y)\rVert/\Delta t$ and acceleration $a=\Delta v/\Delta t$, both finite-difference estimates between consecutive events. Absolute screen position is not used, because it encodes page layout rather than behaviour. Features are standardised with training statistics and cut into windows of 32 events; the last window is padded and a sixth binary channel marks padded steps (Fig.~\ref{fig:lstm}).
 
-\textbf{Model.} One LSTM layer \cite{hochreiter_lstm_1997} with 32 units reads the window; its final hidden state passes through a 32-unit ReLU layer and a sigmoid output (6{,}081 parameters). Window probabilities are temperature-scaled \cite{guo_calibration_2017} ($T=1.45$) and averaged over the chunk, giving $q = P(\text{bot})$; the Humanity Score is $H = 1-q$. Training uses binary cross-entropy, Adam (learning rate $3\times10^{-3}$), dropout 0.25, recurrent dropout 0.2 and early stopping on validation loss.
+\vspace{-15pt}
+\subsubsection{Model}
+One LSTM layer \cite{hochreiter_lstm_1997} with 32 units reads the window. Given the input $x_t$, previous hidden state $h_{t-1}$ and cell state $c_{t-1}$, it computes
+\begin{equation}
+\begin{aligned}
+f_t &= \sigma(W_f x_t + U_f h_{t-1} + b_f),\\
+i_t &= \sigma(W_i x_t + U_i h_{t-1} + b_i),\\
+o_t &= \sigma(W_o x_t + U_o h_{t-1} + b_o),\\
+\tilde c_t &= \tanh(W_c x_t + U_c h_{t-1} + b_c),\\
+c_t &= f_t\odot c_{t-1} + i_t\odot\tilde c_t,\qquad h_t = o_t\odot\tanh(c_t),
+\end{aligned}
+\end{equation}
+where the forget, input and output gates $f_t, i_t, o_t$ decide what the cell keeps, adds and exposes, and $\odot$ is the element-wise product. The final hidden state $h_{32}$ passes through a 32-unit ReLU layer and a single linear output, the logit $z$ (6{,}081 parameters in total). Training uses binary cross-entropy with class-balanced weights, Adam (learning rate $3\times10^{-3}$), dropout 0.25 and recurrent dropout 0.2, with early stopping on a validation split of recordings.
 
-\textbf{Why this design.} The original submission used two LSTM layers (200 and 100 units, 304{,}049 parameters) on absolute $(x,y)$ coordinates. A grouped 5-fold search over architectures and input representations on all 156 recordings showed that the original model had about 1{,}170 parameters per training window, that a single 32-unit layer on relative motion was better on every criterion (cross-validated session AUC 0.977 vs 0.906; leave-one-campaign-out AUC 0.890 vs 0.842), and that Gaussian or jitter augmentation did not help a correctly sized model. Adding timing on top of displacement changed AUC by $+0.007$ on average, with inconsistent sign, so we make no claim that timing features are essential; we keep them because acceleration-type features are standard in mouse-dynamics work \cite{khan_2023}.
+\vspace{-15pt}
+\subsubsection{Temperature Calibration}
+Since the RL state and the rewards treat the score as a probability, the network's output is calibrated after training by temperature scaling \cite{guo_calibration_2017}. For a window with logit $z$, the calibrated probability is $\sigma(z/T)$, where the single parameter $T>0$ is chosen to minimise the log-loss on the validation split and the network weights are left unchanged; $T>1$ softens over-confident outputs and $T<1$ sharpens under-confident ones, while the ranking of windows, and hence the AUC, is unaffected. The scorer used throughout has $T=1.14$. The chunk score is the mean of its windows' calibrated probabilities, $q=P(\text{bot})$, and the Humanity Score is $H=1-q$. Section~\ref{sec:results}-\ref{sec:res_scorer} reports its calibration on held-out recordings.
+
+\vspace{-15pt}
+\subsubsection{Fine-Tuning on the Web Bot Benchmark}
+We use the benchmark's own split of D1 and D2 into 70 training sessions (35 human, 35 bot) and 30 test sessions (15 and 15). Each session is cut into chunks as in Section~\ref{sec:method}-\ref{sec:data}, using all its \texttt{mousemove} events (no 120\,s limit). Each chunk becomes 32-event windows of $[\Delta x,\Delta y,\Delta t,v,a]$ plus the padding mask, standardised with the pre-trained scorer's statistics, as in Section~\ref{sec:method}-\ref{sec:scorer}. This gives 1{,}681 training and 719 test chunks for D1 and 2{,}186 and 942 for D2. The model is our final refitted scorer fine-tuned on the training sessions: 20\% of the training sessions of each class (7 human and 7 bot) are held out for early stopping (patience 10, till 100 epochs) and for calibrating the temperature, while the rest are used for training with Adam (learning rate $10^{-4}$), batch size 64 and class-balanced weights. A chunk's score is the mean of its windows' calibrated probabilities, and a session's score is the mean of its chunk scores, thresholded at 0.5. We repeat this with five seeds, which change the validation split and the randomness of training (batch order and dropout), and report the mean.
+
+\vspace{-15pt}
+\subsubsection{Design Rationale}
+The architecture and input representation were selected by 5-fold cross-validation grouped by session, over LSTM sizes from 8 to 64 units, one or two layers, and inputs ranging from raw coordinates to the kinematic features above. Small models generalised best to unseen data splits. Data augmentation (Gaussian or per-movement jitter) did not improve this model and hence is not used.
+
+\vspace{-15pt}
+\subsubsection{Static Baselines}
+Four untrained policies map the score straight to a level. The \emph{static threshold} shows level 10 when $q>0.5$, and the \emph{multi-threshold} shows level $\lfloor10q\rfloor$. The \emph{NP threshold} sets $t_\alpha$ by the Neyman--Pearson criterion \cite{scott_nowak_2005,tong_np_2018}, so that at most a fraction $\alpha$ of the scorer block's human sessions would ever be challenged, and shows level 10 above it; the \emph{NP multi-threshold} maps ten equal bands of $(t_\alpha,1]$ to levels 1--10. We use $\alpha=0.1$ ($t=0.685$), the best of the values tried in Section~\ref{sec:results}-\ref{sec:drift}.
 
 \begin{figure}[!t]
 \centering
@@ -125,241 +178,522 @@ A playground blog website (navigation, form filling, commenting) recorded \textt
   box/.default=white, >={Stealth[length=1.6mm]}]
 \node[box=blue!6, minimum width=16mm] (in) {Window\\$32\times6$\\{\tiny $\Delta x,\Delta y,\Delta t,v,a$,mask}};
 \node[box=orange!12, right=of in, minimum width=13mm] (lstm) {LSTM\\32 units};
-\node[box=green!10, right=of lstm, minimum width=13mm] (fc) {Dense 32\\ReLU};
-\node[box=green!10, right=of fc, minimum width=13mm] (out) {Dense 1\\sigmoid};
-\node[box=gray!10, right=of out, minimum width=13mm] (cal) {$\div T$\\(temp.)};
+\node[box=green!10, right=7mm of lstm, minimum width=13mm] (fc) {Dense 32\\ReLU};
+\node[box=green!10, right=of fc, minimum width=13mm] (out) {Dense 1\\(linear)};
+\node[box=gray!10, right=7mm of out, minimum width=17mm] (cal) {Temperature\\calibration\\$p=\sigma(z/T)$};
 \draw[->] (in) -- (lstm); \draw[->] (lstm) -- node[above]{$h_{32}$} (fc);
-\draw[->] (fc) -- (out); \draw[->] (out) -- (cal);
+\draw[->] (fc) -- (out); \draw[->] (out) -- node[below]{$z$} (cal);
+\node[box=white, dashed, above=4mm of cal, minimum width=17mm] (train) {Training only:\\$\sigma(z)$ $\rightarrow$ BCE loss};
+\draw[->, dashed] (out.north) |- (train.west);
+\node[font=\tiny, anchor=south west, inner sep=1pt] at (cal.north west) {inference};
 \node[box=blue!6, above=4mm of in, minimum width=16mm] (chunk) {10\,s chunk of \texttt{mousemove}};
 \draw[->] (chunk) -- (in);
-\node[box=gray!4, below=4mm of out, anchor=north east, xshift=10mm] (agg) {mean over the chunk's windows: $q=P(\text{bot})$, $H=1-q$ $\rightarrow$ RL state};
-\draw[->] (cal.south) -- (cal.south |- agg.north);
-\end{tikzpicture}}
-\caption{Humanity Scorer. Each 10\,s chunk is cut into 32-event windows; the window probabilities are temperature-scaled and averaged into the chunk score $q$.}
+\node[box=gray!4, below=4mm of out, anchor=north east, xshift=10mm] (agg) {mean over the chunk's windows: $q=P(\text{bot})$, $H=1-q$ $\rightarrow$ RL state};\end{tikzpicture}}
+\caption{Humanity Scorer Architecture.}
 \label{fig:lstm}
 \end{figure}
 
+\vspace{-5pt}
 \subsection{RL Formulation}
-Each user session is an episode of up to 12 decision steps (one per 10\,s chunk). Many users are active at once; the controller acts for each active user at each step.
+\label{sec:rl}
+Each user session is an episode of up to 12 decision steps, one per 10\,s chunk. Many users are active at once, and the controller acts for each active user at each step.
 
-\textbf{State.} The five features, all in $[0,1]$, are: (1) the current chunk score $q_t$; (2) the running mean of $q$ over the session; (3) the number of challenges the user has passed, $\tanh(n/5)$; (4) the last level shown, divided by 10; and (5) the number of active users, scaled. Features (3)--(5) need no scorer.
+\vspace{-15pt}
+\subsubsection{State}
+Five features in $[0,1]$: (1) the current chunk score $q_t$; (2) the running mean of $q$ over the session; (3) the number of challenges the user has passed, $\tanh(n/5)$; (4) the last level shown, divided by 10; and (5) the number of active users, scaled. Features (3)--(5) need no scorer.
 
-\textbf{Actions.} Level $T\in\{0,\dots,10\}$. Level 0 shows nothing; levels 1--2 are invisible to the user (passive score, honeypot); levels 3--9 are visible challenges of increasing difficulty (checkbox, easy and standard text, image grid, hard text, multi-round, interactive game); level 10 blocks the session (Table~\ref{tab:params}).
+\vspace{-15pt}
+\subsubsection{Actions}
+Level $T\in\{0,\dots,10\}$. Level 0 shows nothing; levels 1--2 are invisible to the user (passive score, honeypot); levels 3--9 are visible challenges of increasing difficulty; level 10 is the strongest level, an audio fallback that humans pass about half the time and only the most capable bots solve; it is not a hard block, so no level removes a user with certainty (Table~\ref{tab:ladder}).
 
-\textbf{Reward (training only).} For a bot of capability $B_s$: if it is stopped, $r = R_{\max} - c_o\max(0, T-B_s)$, which discourages using a stronger level than needed; if it passes, $r = R_{\text{leak}} - c_u\max(0, B_s-T)$. For a human: $r=R_{\max}$ at $T=0$; $r = R_{\max}/2 - c_f\,s_T$ after passing a challenge that took $s_T$ seconds; and $r = R_{\text{FP}} - c_f\,s_T$ if the human fails (a false positive). Friction is priced in measured seconds rather than with the exponential $\beta^T$ of the original submission, whose value at $T=10$ ($-999$) dominated every other term (R1.3). This reward requires the user's true class, which the simulator knows and a deployed system does not. Section~\ref{sec:deploy} tests rewards that a deployment could compute.
+\vspace{-15pt}
+\subsubsection{Reward (Training Only)}
+For a bot of capability $B_s$: if it is stopped, $r = R_{\max} - c_o\max(0, T-B_s)$, which discourages stronger levels than needed; if it passes, $r = R_{\text{leak}} - c_u\max(0, B_s-T)$. For a human: $r=R_{\max}$ at $T=0$; $r = R_{\max}/2 - c_f\,s_T$ after passing a challenge that took $s_T$ seconds; and $r = R_{\text{FP}} - c_f\,s_T$ if the human fails it (a false positive). Friction is priced per measured second, so the human cost of a level follows the solve times of Table~\ref{tab:ladder}. This reward needs the user's true class, which the simulator knows and a deployed system does not.
 
-\textbf{Worked example.} Consider a fallible bot of capability $B_s=4$ whose second chunk scores $q=0.82$, with session mean $0.75$, no challenges passed, last level 0 and 400 active users. The state is $(0.82, 0.75, 0, 0, 0.67)$. Suppose the policy chooses $T=6$ (image grid). The bot passes with probability $\sigma(1.5(4.5-6))=0.095$. If stopped, the session ends and $r=50-2.5\cdot2=45$; if it passes, $r=-150$ and its next state records one passed challenge and last level 0.6. A human shown the same level passes with probability 0.86 in a median 9.7\,s, giving $r=25-2\cdot9.7=5.6$, or fails and gives $r=-100-19.4$. A typical trained DQN shows nothing to a user with $q<0.2$ and escalates through levels 3--7 as $q$ and the running mean rise.
+\vspace{-15pt}
+\subsubsection{Worked Example}
+A fallible bot of capability $B_s=4$ produces a second chunk with $q=0.82$; its session mean is 0.75, it has passed no challenges, its last level was 0 and 400 users are active. The state is $(0.82, 0.75, 0, 0, 0.67)$. If the policy chooses $T=6$ (image grid), the bot passes with probability $\sigma(1.5(4.5-6))=0.095$. If it is stopped, the session ends and $r=50-2.5\cdot2=45$; if it passes, $r=-150$ and its next state records one passed challenge and last level 0.6. A human shown the same level passes with probability 0.86 in a median 9.7\,s, giving $r=25-2\cdot9.7=5.6$, or fails, giving $r=-100-19.4$. A trained DQN typically shows nothing to a user with $q<0.2$ and escalates through levels 3--7 as $q$ and the running mean rise.
 
+\vspace{-15pt}
+\subsubsection{Online Rewards}
+The reward above needs the class. We also train with four rewards that need at most a small labelled sample. Let $o_t$ be the observable outcome of step $t$ (no challenge, passed, failed and continued, failed and left), $\bar r_H(T,o)$ the human reward at expected friction, and $r_B(b,T,o)$ the reward of a bot of capability $b$, with prior $\varrho(b)$ uniform over $0,\dots,9$. The \emph{score-only} reward reads the chunk score as $P(\text{bot})$:
+\begin{equation}
+\hat r^{\,\text{score}}_t=(1-q_t)\,\bar r_H(T_t,o_t)+q_t\textstyle\sum_b\varrho(b)\,r_B(b,T_t,o_t).
+\label{eq:scoreonly}
+\end{equation}
+The \emph{posterior} reward replaces $q_t$ by the posterior over class and capability given the score and the session's outcomes so far:
+\begin{equation}
+\begin{aligned}
+w_t(H)&\propto(1-\hat\pi)\textstyle\prod_{j\le t}P_H(o_j\mid T_j),\\
+w_t(B,b)&\propto\hat\pi\,\Lambda_t\,\varrho(b)\textstyle\prod_{j\le t}P_B(o_j\mid T_j,b),\\
+\hat r^{\,\text{post}}_t&=w_t(H)\,\bar r_H(T_t,o_t)\\
+&\quad+\textstyle\sum_b w_t(B,b)\,r_B(b,T_t,o_t),
+\end{aligned}
+\label{eq:posterior}
+\end{equation}
+normalised to sum to one. $P_H$, $P_B$ are the simulator's outcome probabilities, so this reward is an upper bound for the idea; $\Lambda_t$ is the score likelihood ratio from a Platt calibration \cite{platt_1999} fitted on the scorer block; and $\hat\pi$ is the episode's bot share, estimated by EM from the users' first-step ratios \cite{saerens_2002}.
+
+The two \emph{audit} rewards recalibrate the score on current traffic from a random 2\% of users per episode. With labels (from review or confirmed abuse), ten score bins $k(q)=\min(\lfloor10q\rfloor,9)$ with centres $c_k$ keep decayed counts of audited steps and bots, a variant of histogram-binning recalibration \cite{zadrozny_2001}:
+\begin{equation}
+\begin{aligned}
+n_k&\leftarrow0.97\,n_k+|\mathcal A_{e,k}|,\\
+m_k&\leftarrow0.97\,m_k+\textstyle\sum_{i\in\mathcal A_{e,k}}y_i,\\
+\hat p_k&=\frac{m_k+2c_k}{n_k+2},\qquad \hat r^{\,\text{audit}}_t=\hat r^{\,\text{score}}_t\big|_{q_t\to\hat p_{k(q_t)}},
+\end{aligned}
+\label{eq:recal}
+\end{equation}
+where $\mathcal A_{e,k}$ holds the audited steps of episode $e$ in bin $k$ and $y_i=1$ for a bot; audited users keep the label-based reward. With a level-9 challenge as the audit, shown before the policy acts and kept on at evaluation, only pass or fail is observed: $m_k$ counts failures, and the bot share follows from the known fail rates $f_H=0.144$, $f_B=0.887$ by a smoothed adjusted classify-and-count \cite{forman_2008},
+\begin{equation}
+\begin{aligned}
+\hat f_k&=\frac{m_k+2\,[c_kf_B+(1-c_k)f_H]}{n_k+2},\\
+\hat p_k&=\mathrm{clip}_{[0,1]}\Big(\frac{\hat f_k-f_H}{f_B-f_H}\Big),
+\end{aligned}
+\label{eq:recal_ch}
+\end{equation}
+which then replaces $q_t$ in (\ref{eq:scoreonly}) for every user.
+
+\vspace{-5pt}
 \subsection{Learning Algorithms}
-\textbf{DQN} \cite{mnih_dqn_2015} approximates $Q(s,a)$ with a 128--64 ReLU network and minimises the Huber TD loss to the target $r+\gamma\max_{a'}Q_{\theta^-}(s',a')$ with $\epsilon$-greedy exploration. Its replay memory is split into a human and a bot buffer (10{,}000 transitions each) and every mini-batch draws half from each. \emph{This balancing uses the true class}, as the oracle reward does; for the label-free rewards in Section~\ref{sec:deploy} we balance on the observable outcome (challenge failed vs not) instead.
+\label{sec:algos}
+\subsubsection{DQN}
+DQN \cite{mnih_dqn_2015} approximates the optimal action-value function $Q^*(s,a)$ with a 128--64 ReLU network $Q(s,a;\theta)$ that outputs one value per level. Transitions $(s,a,r,s')$ are stored in a replay memory $\mathcal D$, and the network minimises the temporal-difference loss
+\begin{equation}
+\begin{aligned}
+\mathcal L(\theta)=\mathbb E_{(s,a,r,s')\sim\mathcal D}\Big[\ell_\delta\big(&r+\gamma\max_{a'}Q(s',a';\theta^-)\\
+&-Q(s,a;\theta)\big)\Big],
+\end{aligned}
+\end{equation}
+where $\ell_\delta$ is the Huber loss and $\theta^-$ are the parameters of a target network copied from $\theta$ every 200 steps. Actions are chosen $\epsilon$-greedily: a random level with probability $\epsilon$ (decayed from 1.0 to 0.01), otherwise $\arg\max_a Q(s,a;\theta)$. The replay memory is split into a human and a bot buffer (10{,}000 transitions each), and every mini-batch draws half from each; this balancing uses the true class, as the reward does.
 
-\textbf{PPO} \cite{schulman_ppo_2017} uses the same 128--64 body with separate policy (11 logits) and value heads, the clipped surrogate objective, GAE, and one update per simulated episode. Its architecture was chosen by a search over five bodies (Table~\ref{tab:params}).
+\vspace{-15pt}
+\subsubsection{PPO}
+PPO \cite{schulman_ppo_2017} learns a stochastic policy $\pi_\theta(a\mid s)$ (11 logits) and a value function from the same 128--64 body. It maximises the clipped surrogate objective
+\begin{equation}
+\mathcal L^{\text{CLIP}}(\theta)=\mathbb E_t\big[\min\big(\kappa_t\hat A_t,\ \mathrm{clip}(\kappa_t,1-\epsilon_c,1+\epsilon_c)\hat A_t\big)\big],
+\end{equation}
+where $\kappa_t=\pi_\theta(a_t\mid s_t)/\pi_{\theta_{\text{old}}}(a_t\mid s_t)$ is the probability ratio, $\hat A_t$ the generalised advantage estimate and $\epsilon_c=0.2$; clipping stops a single update from moving the policy too far. Value-function and entropy terms are added with weights 0.5 and 0.01, and the policy is updated once per simulated episode.
 
-\textbf{Neural-LinUCB and Neural Thompson Sampling} \cite{li_linucb_2010,russo_ts_2018} learn an embedding $\phi(s)$ with an MLP and keep, per action, ridge statistics $A_a=\lambda I+\sum\phi\phi^\top$, $b_a=\sum r\phi$. LinUCB picks $\arg\max_a \phi^\top\hat\theta_a + \alpha\sqrt{\phi^\top A_a^{-1}\phi}$ with $\hat\theta_a=A_a^{-1}b_a$; Thompson Sampling samples $\tilde\theta_a$ from the posterior and picks $\arg\max_a\phi^\top\tilde\theta_a$. A single Gaussian posterior was consistently worse than a mixture of Gaussians, so Thompson Sampling uses a 2- or 3-component mixture. \emph{Moving feature space (R1.6):} because $\phi$ changes when the network is updated, statistics accumulated under old embeddings become inconsistent. At the end of training we therefore recompute every $A_a$ and $b_a$ from the stored transitions in the final embedding space; the statistics used at evaluation always match the network that produces $\phi$.
+\vspace{-15pt}
+\subsubsection{Neural-LinUCB and Neural Thompson Sampling}
+Neural-LinUCB and Neural Thompson Sampling \cite{li_linucb_2010,russo_ts_2018,riquelme_2018} treat each decision as a contextual bandit. An MLP maps the state to an embedding $\phi(s)$, and the expected reward of level $a$ is modelled as linear in it, $\mathbb E[r\mid s,a]=\phi(s)^\top\theta_a$. For each level the bandit keeps the ridge statistics
+\begin{equation}
+A_a=\lambda I+\sum_{i:a_i=a}\phi(s_i)\phi(s_i)^\top,\qquad b_a=\sum_{i:a_i=a}r_i\,\phi(s_i),
+\end{equation}
+so that $\hat\theta_a=A_a^{-1}b_a$ is the ridge estimate ($\lambda=1$), and the network weights are trained to reduce the squared error between observed and predicted rewards. LinUCB is optimistic under uncertainty: it picks
+\begin{equation}
+a_t=\arg\max_a\ \phi(s_t)^\top\hat\theta_a+\alpha\sqrt{\phi(s_t)^\top A_a^{-1}\phi(s_t)},\quad \alpha=1.
+\end{equation}
+Thompson Sampling instead keeps a posterior over each $\theta_a$, draws $\tilde\theta_a$ from it and picks $\arg\max_a\phi(s_t)^\top\tilde\theta_a$. With one component the sample is $\tilde\theta_a\sim\mathcal N(\hat\theta_a,\alpha^2A_a^{-1})$, with the covariance either diagonal or full. A single linear model per level cannot express that the same level pays very differently for a human and for a bot, so we also allowed a mixture of $K$ components per level, in the spirit of mixture-prior Thompson Sampling \cite{hong_mixts_2022}, fitted without labels on (embedding, reward) pairs: each component $k$ has its own ridge statistics and a Gaussian density over the embedding, and a context-dependent gate $\pi_k(\phi)\propto\pi_k\,\mathcal N(\phi;m_k,v_k)$ weights the components' sampled scores, $\text{score}(a)=\sum_k\pi_k(\phi)\,\phi^\top\tilde\theta_{a,k}$. With $K=1$ this reduces exactly to Gaussian Thompson Sampling. 
 
-Fig.~\ref{fig:rl_diagrams} contrasts the two families: bandits treat each decision independently, while DQN and PPO propagate value across the steps of a session.
+Four posteriors were compared in the architecture search: a single Gaussian with diagonal covariance, a single Gaussian with full covariance, and mixtures of two and three components (MoG2, MoG3), each combined with five embedding networks. 
+This gives 20 candidates (4 posteriors $\times$ 5 networks).
+% ; for each network and seed one bandit is trained and the four posteriors are refitted on its stored transitions. 
+Each candidate was trained with 5 seeds and scored by 3-fold cross-validation on the RL block. 
+LinUCB, whose rule has no posterior to choose, was searched over the same five embedding networks with its standard single-Gaussian statistics. 
+Since $\phi$ changes whenever the network is updated, statistics accumulated under earlier embeddings become inconsistent; at the end of training we therefore recompute every $A_a$ and $b_a$ from the stored transitions in the final embedding space.
+
+Fig.~\ref{fig:rl_diagrams} contrasts the two families: bandits treat each decision independently, while DQN and PPO propagate value across the steps of a session. Table~\ref{tab:config} lists the final configuration of every component.
 
 \begin{figure}[!t]
   \centering
-  \includegraphics[width=0.49\columnwidth]{images/Networks/contextual_bandit.png}\hfill
-  \includegraphics[width=0.49\columnwidth]{images/Networks/full_rl.png}
-  \caption{Contextual bandit (left) and full RL (right) interaction loops.}
+  \includegraphics[width=0.85\columnwidth]{images/Networks/contextual_bandit.png}\\[4pt]
+  \includegraphics[width=0.85\columnwidth]{images/Networks/full_rl.png}
+  \caption{Contextual bandit (top) and full RL (bottom) interaction loops.}
   \label{fig:rl_diagrams}
 \end{figure}
 
+\vspace{-5pt}
 \subsection{Simulated Environment}
 \label{sec:env}
-\textbf{Traffic.} A training episode samples 50--250 humans and 0--1000 bots, drawing each simulated user's mouse data from a recording in the RL block and each bot's capability $B_s$ uniformly from $\{0,\dots,9\}$. Because human and bot counts vary independently, the number of active users is not a proxy for the bot count (R1.5).
+\subsubsection{Traffic}
+Each training episode draws 50--250 humans uniformly and, independently, one bot volume from $\{0, 20, 100, 200, 500, 1000\}$, so the number of active users does not reveal the number of bots.
+Each simulated user replays the mouse data of a session recording from the RL block, and each bot draws a capability $B_s$ uniformly from $\{0,\dots,9\}$. 
+The trained policies are then evaluated, frozen, in two traffic settings, fixed and varying (Section~\ref{sec:method}-\ref{sec:metrics}).
 
-\textbf{Deterministic world (original submission).} A bot is stopped iff $T>B_s$, and humans always pass. It is the $\alpha\to\infty$ limit of the model below and is kept for comparison.
+\vspace{-15pt}
+\subsubsection{Challenge Outcomes}
+Table~\ref{tab:ladder} lists the 11 threat levels. 
 
-\textbf{Stochastic (``grounded'') world (R1.1).} A bot passes level $T$ with an item-response probability $\sigma(\alpha(B_s+0.5-T))$, $\alpha=1.5$, so strong bots sometimes solve hard challenges and weak bots sometimes solve easy ones. Human pass rates and solve times per level are taken from Bursztein et al.\ \cite{bursztein_humans_2010} and Searles et al.\ \cite{captcha_study_2023} (Table~\ref{tab:params}); a human who fails is lost. After a pass a human may leave with probability $1-e^{-s_T/45\text{\,s}}$. This last term is an \emph{assumption}: we found no study measuring abandonment after a successful solve.
+\emph{Bots:} A bot's capability $B_s\in\{0,\dots,9\}$ sets the hardest level it solves reliably ($B_s-1$, pass probability 0.90); at level $B_s$ itself it passes about two times in three. 
+It passes level $T\ge1$ with the two-parameter logistic item-response (2PL) probability $\sigma(\alpha(B_s+0.5-T))$, the standard model for an agent of latent ability attempting an item of given difficulty \cite{birnbaum_1968,embretson_irt_2000}, with discrimination $\alpha=1.5$, a value in the ``high'' range (1.35--1.69) of the usual classification of item discriminations \cite{baker_irt_2001}, chosen because each level of the ladder is meant to separate bot capabilities sharply while keeping outcomes probabilistic. 
+No measurement fixes $\alpha$, so we treat it as a design choice and test its sensitivity over $\alpha\in\{0.5,1,1.5,3,6,12\}$ (Section~\ref{sec:results}-\ref{sec:sens}); level 0 shows nothing and is always passed. 
+% The probability depends only on the gap $g=B_s-T$, so Table~\ref{tab:ladder}'s three columns determine every capability: a bot passes with probability $\ge$0.98 when $g\ge2$, 0.90 at $g=1$, 0.68 at $g=0$, 0.32 at $g=-1$, 0.095 at $g=-2$, 0.023 at $g=-3$ and $\le$0.005 when $g\le-4$. 
+Strong bots occasionally fail easy challenges and weak bots occasionally pass hard ones. 
+No published study reports solve rates for a common set of bots across all eleven mechanisms, so the per-level bot rates are model outputs rather than measurements; the ordering of the levels follows the attack literature in Table~\ref{tab:ladder} (passive scores and checkboxes are defeated by browser-driving bots, distorted text by generic solvers, image grids by object detectors, while reasoning games are solved only partially by recent multimodal agents). 
 
-\textbf{Abandonment-at-presentation world (v2, sensitivity).} Replacing that assumption, a human may abandon when a visible challenge is shown (and again before a retry), never after passing, with per-type rates from Searles et al.\ \cite{captcha_study_2023} (2.6--9.2\% for levels 3--9, scaled by their in-context/pooled ratio of 1.34) and a position multiplier that front-loads abandonment ($\times3.25$ for the first challenge, $\times0.55$ from the fourth). An abandoning human is charged $R_{\text{FP}}$, consistent with the metrics, and level 10 blocks everyone. Used only in the pilot of Section~\ref{sec:drift}.
+\emph{Humans:} A human passes each attempt with the measured pass probability of that challenge type and takes its median solve time; a human who fails may retry once and is lost after a second failure.
+Even if capable of passing, a human leaves the site with probability $1-e^{-s_T/\tau}$, $\tau=45$\,s, where $s_T$ is the time spent.
+This models human abandonment from friction.
+We found no study that measures such leaving, so this term is a modelling assumption and we report its sensitivity (Section~\ref{sec:results}-\ref{sec:sens}).
 
-\begin{table}[!t]
-\caption{Parameters and Their Sources (R2.4). Lit.\,= Published Study; Search = Chosen by Grouped CV on the RL Block; Assum.\,= Modelling Choice}
-\label{tab:params}
+\begin{table*}[!t]
+\caption{Action Ladder of the Simulated Environment. Human Pass Probability and Median Time per Attempt; Bot Pass Probability $\sigma(1.5(B_s+0.5-T))$ for $T\ge1$, Shown for Three Capabilities (Every Other Capability Follows from the Gap $B_s-T$, Section~\ref{sec:method}-\ref{sec:env})}
+\label{tab:ladder}
 \centering
 \footnotesize
-\setlength{\tabcolsep}{2.5pt}
-\begin{tabular}{p{0.55\columnwidth}p{0.18\columnwidth}p{0.17\columnwidth}}
+\setlength{\tabcolsep}{3pt}
+\resizebox{\textwidth}{!}{\begin{tabular}{clcclcccl}
 \toprule
-\textbf{Parameter} & \textbf{Value} & \textbf{Source} \\
+ & & \multicolumn{3}{c}{\textbf{Human}} & \multicolumn{4}{c}{\textbf{Bot}} \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-9}
+$T$ & \textbf{Mechanism} & $P$(pass) & Median s & Source & $B_s{=}2$ & $B_s{=}5$ & $B_s{=}9$ & Evidence that automated solvers defeat this type \\
 \midrule
-\multicolumn{3}{l}{\emph{Environment}} \\
-Human pass rate, median s, levels 3--8 & .98/3.7 \dots .70/13 & Lit.\ \cite{bursztein_humans_2010,captcha_study_2023} \\
-Level 9 (game) / 10 & .62/25\,s / block & Lit.\ \cite{captcha_study_2023}/Assum. \\
-Bot solve slope $\alpha$; $B_s$ & 1.5; $\mathcal U\{0..9\}$ & Assum.\ (sweep 0.5--$\infty$) \\
-Leave after pass, $\tau$ & 45\,s & Assum.\ (sweep 22--80) \\
-Abandon at presentation (v2) & 2.6--9.2\% & Lit.\ \cite{captcha_study_2023} \\
+0 & No challenge & 1.000 & 0 & --- & 1.000 & 1.000 & 1.000 & nothing is shown \\
+1 & Passive risk score & 0.999 & 0 & assumed (invisible to the user) & 0.905 & 0.999 & 1.000 & reCAPTCHA v3 score gamed by an RL agent \cite{akrout2019} \\
+2 & Honeypot / JavaScript challenge & 0.995 & 0.5 & assumed (invisible to the user) & 0.679 & 0.995 & 1.000 & defeated by any browser-driving bot \cite{iliou_2021} \\
+3 & Checkbox click & 0.980 & 3.7 & time \cite{captcha_study_2023}; pass rate assumed & 0.321 & 0.977 & 1.000 & reCAPTCHA checkbox passed with browser history and cookies \cite{sivakorn_recaptcha_2016} \\
+4 & Easy distorted text & 0.980 & 6.8 & \cite{bursztein_humans_2010} (authorize.net) & 0.095 & 0.905 & 1.000 & generic text solver broke all 8 schemes tested \cite{bursztein2014new} \\
+5 & Standard distorted text & 0.930 & 7.3 & \cite{bursztein_humans_2010} (eBay) & 0.023 & 0.679 & 0.999 & generic text solver \cite{bursztein2014new} \\
+6 & Image grid selection & 0.860 & 9.7 & \cite{bursztein_humans_2010} (Google) & 0.005 & 0.321 & 0.995 & a fine-tuned detector solves 100\% of reCAPTCHA v2 image-grid sessions \cite{plesner2024yolo} \\
+7 & Hard distorted text & 0.750 & 11.9 & \cite{bursztein_humans_2010} (reCAPTCHA) & 0.001 & 0.095 & 0.977 & harder schemes resist the generic solver more often \cite{bursztein2014new} \\
+8 & Very hard text / multi-round & 0.700 & 13.0 & \cite{bursztein_humans_2010} (mail.ru) & 0.000 & 0.023 & 0.905 & several rounds must all be solved (assumed) \\
+9 & Interactive game & 0.620 & 25.0 & time \cite{captcha_study_2023} (18--42\,s); pass rate assumed & 0.000 & 0.005 & 0.679 & only recent VLM agents solve reasoning challenges, partially \cite{qi2026,wu2025mca_bench} \\
+10 & Audio fallback (strongest level) & 0.520 & 30.0 & pass rate \cite{bursztein_humans_2010} (audio); time assumed & 0.000 & 0.001 & 0.321 & strongest level; passed only by the most capable bots (assumed) \\
+\bottomrule
+\end{tabular}}
+\end{table*}
+
+\begin{table*}[!t]
+\caption{Final Configuration. Basis: L = Published Study; CV = Selected by Cross-Validation on the RL Block (Never on the Evaluation Block); D = Design Choice, with the Sensitivity Range Tested in Section~\ref{sec:results}-\ref{sec:sens}}
+\label{tab:config}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\begin{tabular}{p{0.17\textwidth}p{0.55\textwidth}p{0.20\textwidth}}
+\toprule
+\textbf{Component} & \textbf{Setting} & \textbf{Basis} \\
 \midrule
-\multicolumn{3}{l}{\emph{Reward}} \\
-$R_{\max}$, $R_{\text{leak}}$, $R_{\text{FP}}$ & 50, $-150$, $-100$ & Assum.\ (9-setting sweep) \\
-$c_o$, $c_u$, $c_f$ & 2.5, 5, 2/s & Assum.\ (sweep) \\
+Episode & One decision per 10\,s chunk, up to 12 per session; 50--250 humans and 0--1000 bots per episode, drawn independently & D (recordings last $\approx$120\,s) \\
+Bots & Capability $B_s\sim\mathcal U\{0,\dots,9\}$; pass probability $\sigma(\alpha(B_s+0.5-T))$ with $\alpha=1.5$ & D; $\alpha$ from 0.5 to 12 tested \\
+Humans & Pass rate and time per level (Table~\ref{tab:ladder}); one retry; abandonment with probability $1-e^{-s_T/45\text{ s}}$ & L; D for leaving ($\tau$ 22--80\,s and no leaving tested) \\
+Reward & $R_{\max}=50$ (human at level 0, stopped bot), $R_{\text{leak}}=-150$ (bot passes), $R_{\text{FP}}=-100$ (human fails); overkill $c_o=2.5$ and underestimation $c_u=5$ per level; friction $c_f=2$ per second & D \\
 \midrule
-\multicolumn{3}{l}{\emph{Learners}} \\
-DQN/PPO body & 128--64 ReLU & Search (6 / 5 bodies) \\
-LinUCB / TS embedding & 64--32 / 128--64--64 & Search \\
-TS posterior & MoG (2--3 comp.) & Search \\
-Episodes; steps/episode & 200; $\le$12 per user & Assum. \\
-DQN: $\gamma$, lr, $\epsilon$ decay, target sync & .95, $5\!\times\!10^{-4}$, .9995, 200 & Standard \cite{mnih_dqn_2015} \\
-PPO: clip, GAE $\lambda$, epochs, lr & .2, .95, 10, $3\!\times\!10^{-4}$ & Standard \cite{schulman_ppo_2017} \\
-LinUCB $\alpha$, ridge $\lambda$ & 1, 1 & Standard \cite{li_linucb_2010} \\
-Seeds & 5 train $\times$ 50 eval & --- \\
+Humanity Scorer & LSTM(32) $\rightarrow$ Dense(32, ReLU) $\rightarrow$ sigmoid; 32-event windows of $[\Delta x,\Delta y,\Delta t,v,a]$ + mask; Adam $3\!\times\!10^{-3}$, batch 64, dropout 0.25/0.2, early stopping; temperature scaling & CV \\
+DQN & 128--64 ReLU, 9{,}739 parameters; Huber loss; $\gamma=0.95$; Adam $5\!\times\!10^{-4}$; batch 64 (32 human + 32 bot transitions); buffers of 10{,}000 per class; $\epsilon$: 1.0 $\rightarrow$ 0.01 (decay 0.9995); target sync every 200 steps & CV (body); standard \cite{mnih_dqn_2015} \\
+PPO & Shared 128--64 ReLU body; clip 0.2; GAE $\lambda=0.95$; $\gamma=0.95$; 10 epochs of minibatch 64 per episode; Adam $3\!\times\!10^{-4}$; entropy 0.01; value 0.5 & CV (body); standard \cite{schulman_ppo_2017,schulman_gae_2016} \\
+Neural-LinUCB & MLP 64 $\rightarrow$ 32-d embedding; $\alpha=1$; ridge $\lambda=1$ & CV (body); standard \cite{li_linucb_2010,riquelme_2018} \\
+Neural Thompson Sampling & MLP 128--64 $\rightarrow$ 64-d embedding; 3-component mixture-of-Gaussians posterior & CV \cite{riquelme_2018,hong_mixts_2022} \\
+\midrule
+Training and evaluation & 200 training episodes; 5 training seeds; 50 evaluation seeds per traffic setting & D \\
 \bottomrule
 \end{tabular}
-\end{table}
+\end{table*}
 
+\vspace{-5pt}
 \subsection{Evaluation Protocol and Metrics}
-Each trained policy is evaluated on traffic built from the evaluation block, with 100 humans and $\{20,100,200,500,1000\}$ bots, 50 evaluation seeds per volume, for each of 5 training seeds. Let $S_H$ and $S_B$ be the fractions of humans and bots that complete their session. We report the \textbf{Discrimination Index} $\text{DI}=100(S_H-S_B)$, the \textbf{Balanced Orchestration Score} $\text{BOS}=2S_HK_B/(S_H+K_B)$ with $K_B=1-S_B$ (the F1-style harmonic mean \cite{fscore_2023}), and the scale-invariant $\text{SI-F1}$, the F1 of $S_H$ with normalised precision $S_H/(S_H+S_B)$, plus mean friction in seconds. \emph{Zero-bot traffic is excluded} from every metric and average (R1.4): $S_B$ is undefined without bots, and the original table filled it with conventions that were not stated. Uncertainty is reported \emph{across training seeds} (each seed averaged over volumes and evaluation seeds), as a 95\% $t$-interval; comparisons use Welch's test with Holm correction \cite{holm_1979}. We use ``significant'' only for such tests.
+\label{sec:metrics}
+Each policy is trained on the RL block and evaluated, frozen, on simulated traffic built from the evaluation block in two settings: \emph{fixed} traffic of 100 humans with 20, 100, 200, 500 or 1000 bots, and \emph{varying} traffic in which the number of humans is drawn from 50--250 and bots make up 5--75\% of all users (so 3--750 bots). Each setting is run with 50 evaluation seeds for each of 5 training seeds.
+
+Let $H_{\text{tot}}$ and $B_{\text{tot}}$ be the numbers of humans and bots in a run, and $H_{\text{surv}}$ and $B_{\text{surv}}$ the numbers that complete their session. With human survival $S_H=H_{\text{surv}}/H_{\text{tot}}$, bot survival $S_B=B_{\text{surv}}/B_{\text{tot}}$ and bot kill rate $K_B=1-S_B$:
+\begin{itemize}[leftmargin=*, itemsep=1pt]
+\item \textbf{Discrimination Index}, $\text{DI}=100(S_H-S_B)$: the margin between the share of humans kept and bots let through. It is our primary metric.
+\item \textbf{Balanced Orchestration Score}, $\text{BOS}=2S_HK_B/(S_H+K_B)$: the harmonic mean of humans kept and bots stopped, which is low whenever either fails \cite{fscore_2023}.
+\item \textbf{System-Purity F1}, $\text{SP-F1}=2PS_H/(P+S_H)$ with $P=H_{\text{surv}}/(H_{\text{surv}}+B_{\text{surv}})$: the purity of the traffic that gets through; it depends on the bot-to-human ratio.
+\item \textbf{Scale-Invariant F1}, $\text{SI-F1}=2P_nS_H/(P_n+S_H)$ with $P_n=S_H/(S_H+S_B)$: a version of SP-F1 that weights 1\% of humans equally with 1\% of bots, so it does not depend on traffic volume.
+\end{itemize}
+We also report mean friction (seconds of challenge time per human). 
+Bot survival is undefined without bots, so every run has at least one bot.
+Uncertainty is reported across training seeds (each seed averaged over its evaluation runs) as a 95\% $t$-interval.
 
 \section{RESULTS}
 \label{sec:results}
 
 \subsection{Humanity Scorer}
-\textbf{Original model.} On the original temporal hold-out (283 test windows from a later campaign) the original two-layer model reached 90.46\% accuracy, 93.67\% recall and ROC-AUC 0.951 (Table~\ref{tab:confusion}).
+\label{sec:res_scorer}
+\subsubsection{Our Recordings}
+The five cross-fitted scorers reach validation AUC 0.976--0.988 and AUC 0.962--0.984 on the recordings held out from each. 
+On the evaluation block the refitted scorer classifies 96.9\% of 262 chunks correctly (AUC 0.992; 154 of 160 bot chunks and 100 of 102 human chunks), and all 50 sessions when chunk scores are averaged per session. 
+Its chunk-level Brier score is 0.032 and its expected calibration error (10 bins) is 0.053. 
+Temperature scaling, fitted on the validation split, does not reduce calibration error on this block (0.045 before scaling), so we treat the score as approximately but not exactly calibrated. 
+% The sessions of the evaluation block are well separated; Section~\ref{sec:results}-\ref{sec:drift} examines what happens when they are not.
 
-\begin{table}[!t]
-\caption{Confusion Matrix of the Original Scorer on Its Test Set}
-\label{tab:confusion}
-\centering
-\footnotesize
-\begin{tabular}{lcc}
-\toprule
- & \textbf{Predicted human} & \textbf{Predicted bot} \\
-\midrule
-Actual human & 163 & 11 \\
-Actual bot & 16 & 93 \\
-\bottomrule
-\end{tabular}
-\end{table}
+\vspace{-15pt}
+\subsubsection{Web Bot Detection Benchmark}
+Table~\ref{tab:webbot} compares our fine-tuned scorer (Section~\ref{sec:method}-\ref{sec:scorer}), which uses mouse movements only, with the two detectors of Iliou et al.\ \cite{iliou_2021}: their mouse-movement module and their fusion of mouse movements and web logs.
 
-\textbf{Revised model.} The five cross-fitted scorers used for RL training reach validation AUC 0.950--0.986 and held-out AUC 0.920--0.992. On a pool of unseen sessions, the selected architecture has window AUC 0.954 and session AUC 0.971; temperature scaling reduces the expected calibration error from 0.064 to 0.046, with Brier score 0.065 (R1.7). Leave-one-campaign-out (unseen participant sitting and hardware) lowers session AUC to 0.890, which is the more honest estimate for new users. Fallible bots are the hardest family (AUC 0.918 against humans), human-like bots the easiest (0.991).
-
-\textbf{External data (R1.9).} The original submission reported near-perfect fine-tuned results on the web bot detection dataset of Iliou et al.\ \cite{iliou_2021} and 95.18\% on Balabit \cite{balabit_2016}. On re-examination these numbers do not support a bot-detection claim and we withdraw them: Balabit contains only human users, so its accuracy measured only how many human windows were not flagged, and the web-bot runs split \emph{windows} at random (windows of one session fell on both sides) and used the test set for early stopping. In this revision external data are used only as \emph{unseen populations}, with a session-level split for the web-bot data (advanced bots and humans) and a user-level split for Balabit (5 users for injection, 5 held out). Without fine-tuning the scorer does not transfer: advanced web bots receive a mean $P(\text{bot})$ of only 0.30, and Balabit humans are ranked as more bot-like than those bots (AUC 0.13). This motivates the drift study of Section~\ref{sec:drift}.
-
-\subsection{Main Comparison on Held-Out Recordings}
-Table~\ref{tab:headline} replaces Table~4 of the original submission. The original table had two problems: the RL policies were trained and evaluated on the scorer's own test recordings, and its ``$\pm$'' measured variation across bot volumes rather than across training runs. Here every number comes from the held-out evaluation block, and intervals are across 5 training seeds.
+The fine-tuned scorer classifies every test session correctly on both benchmarks in all five seeds. 
+On mouse movements alone it matches Iliou et al.'s mouse module on D1 and exceeds it on D2 (accuracy 1.000 vs 0.93), the benchmark whose bots imitate human movement, and it equals their fusion with web logs. 
+Per 10\,s chunk, accuracy is 0.996 (D1) and 0.995 (D2), with AUC 0.999.
+% Trained from scratch on the 70 training sessions, the same architecture reaches session accuracy 1.000 and chunk accuracy 0.998 and 0.996. 
+% Without fine-tuning, the scorer ranks the D2 sessions perfectly (session AUC 1.000) but scores every advanced bot below 0.5 (accuracy 0.50), and on D1 it does not separate the moderate bots (AUC 0.55): a new bot type first appears as a \emph{calibration} failure, which motivates Section~\ref{sec:results}-\ref{sec:drift}.
 
 \begin{table*}[!t]
-\caption{Held-Out Evaluation (Deterministic World, Fold 2). Mean over Bot Volumes 20--1000 (100 Humans) and 50 Evaluation Seeds; Varying Traffic: Humans 64--239 and Bots 3--717 Drawn per Run; $\pm$ Is the 95\% CI over 5 Training Seeds; Static Policies Are Deterministic Given the Scorer}
-\label{tab:headline}
+\caption{Web Bot Detection Dataset \cite{iliou_2021}: D1 (Humans vs Moderate Bots) and D2 (Humans vs Advanced Bots), Official Test Sessions. Iliou et al.: Values Reported in \cite{iliou_2021} (Session Level). Ours: Fine-Tuned Humanity Scorer, Mean $\pm$ SD over 5 Seeds}
+\label{tab:webbot}
 \centering
 \footnotesize
-\resizebox{\textwidth}{!}{\begin{tabular}{lcccccccccccc}
+\setlength{\tabcolsep}{3.2pt}
+\resizebox{\textwidth}{!}{\begin{tabular}{lcccccccc|cccccccc}
 \toprule
- & \multicolumn{5}{c}{\textbf{DI by bot volume}} & & & & & & \\
-\cmidrule(lr){2-6}
-\textbf{Policy} & 20 & 100 & 200 & 500 & 1000 & \textbf{DI} & \textbf{Worst seed} & \textbf{DI, varying traffic} & \textbf{BOS} & \textbf{SI-F1} & \textbf{Humans kept} & \textbf{Friction (s)} \\
+ & \multicolumn{8}{c|}{\textbf{D1: humans vs moderate bots}} & \multicolumn{8}{c}{\textbf{D2: humans vs advanced bots}} \\
+ & & \multicolumn{3}{c}{Bot class} & \multicolumn{3}{c}{Human class} & & & \multicolumn{3}{c}{Bot class} & \multicolumn{3}{c}{Human class} & \\
+\cmidrule(lr){3-5}\cmidrule(lr){6-8}\cmidrule(lr){11-13}\cmidrule(lr){14-16}
+\textbf{Detector (level)} & Acc. & P & R & F1 & P & R & F1 & AUC & Acc. & P & R & F1 & P & R & F1 & AUC \\
 \midrule
-DQN & 100.0 & 100.0 & 100.0 & 99.3 & 95.1 & \textbf{98.9} $\pm$ 0.4 & 98.6 & \textbf{99.7} $\pm$ 0.1 & 0.994 & 0.994 & 0.989 & 7.0 \\
-Thompson Sampling (MoG3) & 84.7 & 90.7 & 95.0 & 92.0 & 92.3 & 90.9 $\pm$ 12.4 & 73.4 & 88.9 $\pm$ 17.6 & 0.953 & 0.954 & 0.945 & 1.7 \\
-LinUCB & 55.4 & 53.8 & 55.1 & 51.4 & 42.0 & 51.5 $\pm$ 36.5 & 13.1 & 49.6 $\pm$ 36.1 & 0.641 & 0.641 & 0.549 & 33.0 \\
-Static Multi-Threshold & 80.0 & 78.6 & 78.8 & 78.2 & 78.0 & 78.7 & --- & 78.1 & 0.893 & 0.893 & 0.887 & 9.4 \\
-Static Single-Threshold & 77.7 & 77.7 & 77.7 & 77.7 & 77.7 & 77.7 & --- & 77.6 & 0.874 & 0.874 & 0.777 & 6.7 \\
-DQN without Humanity Score & 24.8 & 24.1 & 20.2 & 30.5 & 18.3 & 23.6 $\pm$ 10.8 & 13.9 & 21.5 $\pm$ 11.1 & 0.384 & 0.665 & 0.880 & 29.5 \\
+Iliou et al., mouse module (session) & 1.00 & 1.00 & 1.00 & 1.00 & 1.00 & 1.00 & 1.00 & -- & 0.93 & 0.88 & 1.00 & 0.94 & 1.00 & 0.87 & 0.93 & -- \\
+Iliou et al., mouse + web-log fusion (session) & 1.00 & 1.00 & 1.00 & 1.00 & 1.00 & 1.00 & 1.00 & -- & 1.00 & 1.00 & 1.00 & 1.00 & 1.00 & 1.00 & 1.00 & -- \\
+\midrule
+Ours, fine-tuned, per session$^a$ & \textbf{1.000} & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 & \textbf{1.000} & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 & 1.000 \\
+Ours, fine-tuned, per 10\,s chunk$^b$ & 0.996 & 0.988 & 1.000 & 0.994 & 1.000 & 0.994 & 0.997 & 0.999 & 0.995 & 0.997 & 0.993 & 0.995 & 0.993 & 0.997 & 0.995 & 0.999 \\
+\bottomrule
+\end{tabular}}
+
+\vspace{2pt}
+{\scriptsize $^a$One decision per test session: the mean of the session's chunk scores, thresholded at 0.5; 30 test sessions in each benchmark (15 human, 15 bot), the unit Iliou et al.\ report. $^b$One decision per 10\,s chunk of a test session, the unit our controller acts on; 719 test chunks in D1 and 942 in D2. Seed-to-seed SD $\le$0.001 for every entry.}
+\end{table*}
+
+\vspace{-5pt}
+\subsection{Reinforcement Learning}
+\label{sec:res_main}
+
+\begin{table*}[!t]
+\caption{Held-Out Evaluation. Fixed Traffic: 100 Humans and 20--1000 Bots; Varying Traffic: 50--250 Humans with Bots Making Up 5--75\% of Users. Means over 50 Evaluation Seeds per Setting; $\pm$ Is the 95\% CI over 5 Training Seeds. Static Policies Have No Training Seed.}
+\label{tab:main}
+\centering
+\footnotesize
+\resizebox{\textwidth}{!}{\begin{tabular}{lccccccccccccc}
+\toprule
+ & \multicolumn{5}{c}{\textbf{DI by bot volume (fixed)}} & \multicolumn{7}{c}{\textbf{Fixed traffic, all volumes}} & \textbf{Varying traffic} \\
+\cmidrule(lr){2-6}\cmidrule(lr){7-13}\cmidrule(lr){14-14}
+\textbf{Policy} & 20 & 100 & 200 & 500 & 1000 & \textbf{DI} & Worst seed & BOS & SP-F1 & SI-F1 & Humans kept & Friction (s) & \textbf{DI} \\
+\midrule
+PPO & \textbf{100.0} & \textbf{100.0} & \textbf{100.0} & \textbf{100.0} & \textbf{99.0} & \textbf{99.8} $\pm$ 0.6 & \textbf{99.0} & \textbf{0.999} & \textbf{0.998} & \textbf{0.999} & \textbf{0.998} & \textbf{0.1} & \textbf{99.96} $\pm$ 0.07 \\
+DQN & \textbf{100.0} & \textbf{100.0} & \textbf{100.0} & 95.4 & 93.8 & 97.8 $\pm$ 1.2 & 97.0 & 0.989 & 0.989 & 0.989 & 0.978 & 1.3 & 99.4 $\pm$ 0.3 \\
+Thompson Sampling (MoG3) & 88.2 & 96.1 & 94.9 & 93.5 & 87.6 & 92.1 $\pm$ 10.1 & 81.7 & 0.953 & 0.949 & 0.953 & 0.925 & 4.9 & 92.3 $\pm$ 11.5 \\
+\quad TS, MoG2 & 79.2 & 88.7 & 93.6 & 92.5 & 81.4 & 87.1 $\pm$ 12.7 & 74.5 & 0.923 & 0.921 & 0.930 & 0.911 & 5.8 & 88.4 $\pm$ 13.8 \\
+\quad TS, Gaussian (full) & 67.8 & 78.4 & 81.9 & 82.8 & 79.5 & 78.1 $\pm$ 24.4 & 45.2 & 0.860 & 0.860 & 0.860 & 0.781 & 12.3 & 77.0 $\pm$ 24.3 \\
+\quad TS, Gaussian (diag.) & 68.2 & 77.7 & 80.5 & 82.0 & 79.6 & 77.6 $\pm$ 24.6 & 44.8 & 0.857 & 0.857 & 0.857 & 0.776 & 12.6 & 76.6 $\pm$ 25.1 \\
+LinUCB & 67.1 & 67.0 & 65.7 & 64.9 & 58.9 & 64.7 $\pm$ 28.3 & 44.9 & 0.768 & 0.741 & 0.768 & 0.665 & 18.1 & 62.2 $\pm$ 33.4 \\
+Static NP threshold ($\alpha=0.1$) & 95.7 & 95.7 & 95.6 & 95.3 & 95.0 & 95.5 & --- & 0.977 & 0.977 & 0.977 & 0.955 & 3.0 & 95.2 \\
+Static NP multi-threshold ($\alpha=0.1$) & 94.8 & 94.1 & 94.6 & 94.4 & 94.1 & 94.4 & --- & 0.972 & 0.945 & 0.972 & 0.962 & 2.3 & 93.9 \\
+Static threshold & 90.6 & 91.0 & 90.9 & 90.7 & 90.5 & 90.7 & --- & 0.951 & 0.951 & 0.951 & 0.907 & 6.2 & 90.3 \\
+Static multi-threshold & 77.0 & 77.4 & 77.9 & 78.5 & 77.8 & 77.7 & --- & 0.875 & 0.867 & 0.875 & 0.783 & 10.7 & 78.0 \\
+DQN without Humanity Score & 5.1 & 16.7 & 23.7 & 21.4 & 17.1 & 16.8 $\pm$ 7.5 & 9.3 & 0.394 & 0.487 & 0.555 & 0.614 & 20.0 & 16.2 $\pm$ 7.0 \\
 \bottomrule
 \end{tabular}}
 \end{table*}
 
-DQN improves on the best static policy by about 20 DI at every seed (worst seed 98.6 vs 78.7) and keeps all humans up to 200 bots, 95\% at 1000. Removing the Humanity Score from the state costs 75 DI: without it the agent cannot tell users apart and lets 64\% of bots through. Thompson Sampling has the least friction (1.7\,s) but is seed-sensitive (worst seed 73.4), and LinUCB is unstable (13--93). When the numbers of humans (64--239) and bots (3--717) are both varied, drawn independently for each run, the results barely change (DQN 99.7, best static 78.1; Table~\ref{tab:headline}), so the comparison does not depend on a fixed human population. The two counts are drawn per run rather than crossed in a full factorial grid. Two caveats bound these numbers. First, the evaluation block is small (14 human and 36 bot recordings) and the scorer separates it almost perfectly, so DQN is near a ceiling; on the validation folds used for architecture search the same DQN scores 83.6 $\pm$ 0.8 (SE). Second, leakage of training recordings into evaluation would inflate scores: in a role-reversal test (two agents, each evaluated on the recordings it trained on and on those it did not), DQN scores 4.5 DI higher on seen recordings (SE 2.1, 10 splits), while the policies that do not train show a gap of exactly zero. The ranking is unchanged on unseen recordings (DQN 78.2 vs 66.5 for the best static).
+Table~\ref{tab:main} reports every policy on the evaluation block.
+PPO and DQN keep almost every human and let no bot through: PPO reaches DI 99.8 (worst seed 99.0) with 0.1\,s of challenge time per human, and DQN 97.8 (worst seed 97.0), losing a few humans only at 500 and 1000 bots. Both exceed every static policy. 
+The NP threshold stops every bot but loses 4.5\% of humans (DI 95.5, 3.0\,s per human); the NP multi-threshold keeps slightly more humans (96.2\%) but lets 1.9\% of bots through (DI 94.4). 
+Their fixed threshold variants perform much below them.
+% The fixed threshold reaches 90.7 (6.2\,s). The multi-threshold stops the same bots but loses more humans (DI 77.7): it challenges every user with $q\ge0.3$ at every step, and each pass carries a chance of leaving, so 20.5\% of its humans leave against 6.3\% for the fixed threshold; this ranking depends on the leave-after-pass assumption (Section~\ref{sec:results}-\ref{sec:sens}). 
+Removing the Humanity Score reduces DQN to DI 16.8, letting 45\% of bots through. 
 
-\textbf{Population confound (R1.5).} Freezing the active-user feature at any constant from 25 to 800 changes human survival by at most 4.4 points and bot survival by at most 1.8, so security outcomes do not depend on reading the attack size from the population. The \emph{share of users challenged} does depend on it (0.305 unfrozen; 0.204--0.357 frozen), so this feature mainly controls how cautious the policy is.
+The bandits are less stable: Thompson Sampling reaches DI 92.1 (worst seed 81.7) and LinUCB 64.7 (worst seed 44.9). 
+Refitted on held-out recordings, the Thompson posteriors reproduce the ordering of the architecture search (single Gaussian 77.6 diagonal and 78.1 full, two components 87.1, three 92.1), so the gain comes from the number of components, not the covariance. 
+Thompson Sampling (MoG3) with 3 components performs the best among them.
+Optimising only the immediate reward, the bandits cannot plan an escalation over the session as DQN and PPO do. 
+Under varying traffic every policy scores the same or slightly higher (PPO 99.96, DQN 99.4).
+The evaluation block is small and well separated by the scorer, so these figures are close to a ceiling; Section~\ref{sec:results}-\ref{sec:drift} tests the policies when the score is less reliable.
 
-\subsection{Stochastic Challenge Outcomes}
-Table~\ref{tab:e8} repeats the comparison in the grounded world, where challenges are passed probabilistically and humans can fail or leave. Policies retrained in this world are compared with the deterministic-world DQN transferred without retraining.
+\vspace{-5pt}
+\subsection{Sensitivity to Simulator Assumptions}
+\label{sec:sens}
+\subsubsection{Simulator Constants}
+We re-evaluated the trained policies (without retraining) under bot-solve slopes $\alpha\in\{0.5,1,1.5,3,6,12\}$ and leave-after-pass constants $\tau\in\{22,45,80\}$\,s or no leaving. 
+RL policies are stable across $\alpha$, while the multi-threshold policy drops to 69.6 at $\alpha=12$. 
+Human abandonment matters most for policies that challenge humans often: as $\tau$ grows from 22\,s to no leaving, the multi-threshold policy rises from 66.2 to 97.9 and overtakes the static threshold (87.8 to 96.8).
+PPO and DQN remain the best policies at every $\tau$.
 
-\begin{table}[!t]
-\caption{Grounded Stochastic World ($\alpha=1.5$), Mean over 5 Training Seeds}
-\label{tab:e8}
-\centering
-\footnotesize
-\setlength{\tabcolsep}{3pt}
-\begin{tabular}{lccccc}
-\toprule
-\textbf{Policy} & \textbf{DI} & \textbf{Humans} & \textbf{Bots} & \textbf{Aband.} & \textbf{Fric.\,(s)} \\
-\midrule
-Thompson Sampling (MoG3) & \textbf{91.5} & 0.956 & 0.041 & 0.032 & 2.6 \\
-DQN (retrained) & 88.6 & 0.886 & 0.000 & 0.106 & 5.8 \\
-DQN (deterministic-trained) & 86.4 & 0.864 & 0.000 & 0.134 & 6.6 \\
-Static Single-Threshold & 82.6 & 0.826 & 0.000 & 0.116 & 11.5 \\
-Static Multi-Threshold & 80.6 & 0.813 & 0.007 & 0.164 & 9.4 \\
-LinUCB & 24.3 & 0.272 & 0.029 & 0.593 & 40.8 \\
-DQN without Humanity Score & 7.5 & 0.512 & 0.437 & 0.443 & 24.9 \\
-\bottomrule
-\end{tabular}
-\end{table}
+\vspace{-15pt}
+\subsubsection{Reward Constants}
+DQN was retrained (5 seeds each) under nine alternative reward settings: leak penalty $R_{\text{leak}}\in\{-50,-300\}$, false-positive penalty $R_{\text{FP}}\in\{-50,-200\}$, friction $c_f\in\{1,4\}$ per second, overkill $c_o=1$ and underestimation $c_u\in\{2.5,10\}$. Eight settings give DI 97.5--98.7 (default 97.7), with no bot getting through in any of them. The exception is the mildest false-positive penalty ($R_{\text{FP}}=-50$): losing a human then costs little more than a challenge, and one of its five seeds kept only 70\% of humans (DI 70.4; mean 92.1). Every setting stays above the static threshold (90.3 on the same evaluation seeds) on average.
 
-With stochastic outcomes the advantage of DQN over Thompson Sampling disappears: Thompson Sampling has the highest DI at every bot-solve slope tested ($\alpha$ from 0.5 to 12: 90.3--92.2 vs 86.1--86.9 for DQN), mainly because it challenges less and loses fewer humans to abandonment (3.2\% vs 10.6\%). Learned policies still beat static thresholds. The retrained DQN's mean includes one collapsed seed (49.8), which is why its seed SD is 21.7.
+\vspace{-15pt}
+\subsubsection{Population Input}
+Freezing DQN's active-user feature at 25, 100 or 400 regardless of the real traffic leaves bot survival at zero (DI 100.0, against 96.6 unfrozen on the same grid of 25--400 humans and 20--1000 bots). Freezing it at 1400, above anything seen in training, makes the policy challenge more and keep fewer humans (87\%). The population count therefore controls how cautious the policy is, not whether it stops bots; detection comes from the score.
 
-\textbf{Reward and abandonment sensitivity (R1.3).} Retraining DQN under nine reward settings (leak penalty, friction form and scale, over- and under-kill coefficients; 5 seeds each) gives a policy that beats every static baseline on the seed mean in all nine; 3 of the 45 runs collapsed. Under the shortest leave-after-pass constant ($\tau=22$\,s) the fixed policies rank DQN 91.7, Static Single 81.4, Thompson Sampling 75.9, Static Multi 64.8, LinUCB 1.8.
+% \vspace{-5pt}
+% \subsection{Rewards a Deployment Could Compute}
+% \label{sec:deploy}
+% A deployed controller sees only observable outcomes: a session that failed a challenge and ended may be a blocked bot or a lost human, and one that passed may be a satisfied human or a leaked bot. In our simulation 47.5\% of ``passed and continued'' events are bots and 11.6\% of ``failed and ended'' events are humans. We trained DQN with 12 rewards computed from such outcomes (different penalties, potential-based shaping, a learned reward model, delayed abuse labels): \emph{all 12 converged to never challenging anyone} (DI $\approx0$). Two scorer-based alternatives do work: the \emph{score-only} and \emph{posterior} rewards of Section~\ref{sec:method}-\ref{sec:rl} reach DI 85.3 (seed SD 8.3) and 92.8 (SD 5.9), against 88.6 for the label-based reward under the same protocol; neither difference is significant ($p=0.70$ and $p=0.15$ before correction). This experiment used a second cross-fitted instance of the same scorer. Both rewards rely on the scorer being right, which the next section tests.
 
-\subsection{Rewards a Deployment Could Compute}
-\label{sec:deploy}
-A deployed controller sees only observable outcomes: a session that failed a challenge and ended may be a blocked bot or a lost human; one that passed may be a satisfied human or a leaked bot. In our simulation 47.5\% of ``passed and continued'' events are bots and 11.6\% of ``failed and ended'' events are humans. We trained DQN with 12 rewards computed from such outcomes (different penalties, potential-based shaping, a learned reward model, delayed abuse labels): \emph{all 12 converged to never challenging anyone} (DI $\approx0$). Two scorer-based alternatives work in the stationary setting: a \emph{score-only} reward that replaces the class label with the score (DI 85.3, seed SD 8.3), and a \emph{posterior} reward that weights the oracle reward by the posterior class probability, using an EM estimate of the current bot share (DI 92.8, SD 5.9; oracle 88.6). Neither difference from the oracle is significant ($p=0.70$ and $p=0.15$ before correction). The posterior reward uses the simulator's own outcome model and is therefore an upper bound for this idea, and both rewards rely on the scorer being right, which the next section tests.
-
-\subsection{Calibration Drift: Offline vs Online Training}
+\vspace{-5pt}
+\subsection{Covert Bots: Offline vs Online Training}
 \label{sec:drift}
-We simulate a scorer whose calibration degrades. In the \emph{bots-look-human} direction a fraction $\rho$ of evaluation bots is replaced by advanced web bots from an external dataset \cite{iliou_2021}, which the scorer rates as human-like; in the \emph{humans-look-bot-like} direction a fraction $\rho$ of humans is replaced by Balabit users \cite{balabit_2016}. As $\rho$ goes from 0 to 1 the calibration error of the shifted class grows from 0.07 to 0.61 (bots) and from 0.13 to 0.45 (humans), while session-level AUC stays $\ge0.99$, i.e., the ranking of sessions barely changes but the score's probabilities become wrong. We compare (a) policies trained offline and evaluated frozen, and (b) DQN and PPO trained online for 300 episodes, with the shift injected from episode 100, against the same protocol without the shift (control). The scorer is a cross-fitted seed chosen because it ranks the external bots best; this choice was made after inspecting the external data.
+New bot types are the main threat a deployed scorer faces: bots that imitate human movement more closely than anything in the scorer's training data. We test two versions of this threat. 
+In the first, the scorer's \emph{calibration} breaks while its ranking survives; in the second, the attacker destroys the ranking as well.
+
+\vspace{-20pt}
+\subsubsection{Covert Bots That Shift Calibration}
+A fraction $\rho$ of the evaluation bots is replaced by Phase~2 advanced web bots \cite{iliou_2021}, whose movement imitates humans; training uses the other half of that population. 
+Without fine-tuning, our scorer gives these bots a mean $P(\text{bot})$ of only 0.39, so as $\rho$ goes from 0 to 1 the bots' calibration error grows from 0.07 to 0.61, while session-level AUC stays $\ge0.99$: the bots still score above the humans, but far below what the policies learned to expect. 
+We compare policies trained offline and evaluated frozen with DQN and PPO trained online for 300 episodes, with the covert bots present from episode 100, against the same protocol without them (control). 
+This online training result for PPO under drift is shown in Table~\ref{tab:recal}.
+% The scorer seed used throughout this paper was chosen among the cross-fitted seeds after inspecting how they ranked the Phase~2 advanced bots.
 
 \begin{figure*}[!t]
   \centering
   \includegraphics[width=0.92\textwidth]{images/drift.pdf}
-  \caption{DI on the held-out block as the scorer's calibration degrades (grounded world, mean $\pm$ SE over 5 training seeds). Left: offline-trained policies, frozen. Middle/right: online training through the shift with three rewards; dashed: oracle reward trained without the shift. Online points start at $\rho=0.1$.}
+  \caption{
+    DI on the evaluation block as covert bots replace a fraction $\rho$ of the bots (mean $\pm$ SE over 5 training seeds). 
+    Left: offline-trained policies, frozen. 
+    Middle and right: online training of DQN and PPO (the two stable learners of Table~\ref{tab:main}) through the shift with three rewards, plus the two audit-recalibrated rewards of Table~\ref{tab:recal} (dotted);
+    dashed: control, trained online with the label-based reward but without covert bots, then evaluated frozen.
+  }
   \label{fig:drift}
 \end{figure*}
 
-\textbf{Offline-trained, frozen} (Fig.~\ref{fig:drift}, left). All score-using policies degrade as calibration error grows; DQN without the score stays flat at about 16, as expected for a negative control. When bots look human, the RL policies fall \emph{further} than static thresholds (at $\rho=1$: DI 10.2 DQN, 3.8 PPO vs 28.4 and 39.5 static), because they rely on the score more. When humans look bot-like the order reverses (57.9 DQN, 56.4 PPO vs 22.5 and 26.3 static).
+\emph{Frozen policies} (Fig.~\ref{fig:drift}, left) all degrade as more bots become covert, and the RL policies degrade \emph{further} than static thresholds, since they learned to trust the score more; DQN without the score stays flat at about 16, as expected for a negative control. 
+% LinUCB starts lowest (49.3 without drift) and falls below zero at $\rho=1$, where it lets through a larger share of bots than of humans it keeps. 
+\emph{Online training} (middle and right) fixes this. 
+% Averaged over $\rho$ and tested against the control (Holm over 24 contrasts), the label-based reward recovers significantly ($+30.5$ DQN, $+33.2$ PPO DI; $p_{\text{holm}}<10^{-6}$), and so does the label-free score-only reward ($+27.6$, $+27.5$; $p_{\text{holm}}\le0.003$). 
+At $\rho=1$ PPO trained with the score-only reward keeps DI at 82.7, against 3.8 frozen and 39.5 for the best static policy.
+Online updates move the policy's operating point as the scores move, which no fixed threshold can do.
+The posterior reward is the exception: its EM estimate of the bot share treats covert bots as humans, so online training with it lets essentially every bot through at $\rho=1$ (DI $\approx0$), \emph{below} its own control.
+A reward that estimates the bot population from the score inherits the scorer's blind spot.
 
-\textbf{Online training} (middle and right). Averaged over $\rho$ and tested against the no-shift control (Holm over 24 contrasts), the oracle reward recovers the bot shift significantly ($+30.5$ DQN, $+33.2$ PPO DI; $p_{\text{holm}}<10^{-6}$) and the score-only reward also does ($+27.6$, $+27.5$; $p_{\text{holm}}\le0.003$). The score-only reward cannot recover the human shift (PPO $-8.7$, $p_{\text{holm}}=0.002$). No posterior-family reward gains significantly in either direction, and at $\rho=1$ with covert bots online training with the posterior reward lets essentially every bot through (DI $\approx0$), \emph{below} its own no-shift control: the reward inherits the scorer's error and teaches it to the policy.
+\emph{Trade-off between humans lost and bots stopped:} Fig.~\ref{fig:pareto} sweeps each method's trade-off parameter: the NP budget $\alpha$ for the static policy and the false-positive penalty $R_{\text{FP}}\in\{-25,\dots,-400\}$ for DQN and PPO, trained offline (frozen) or online through the covert bots with the score-only reward (3 seeds each). 
+Without drift, offline PPO stops every bot while losing under 1\% of humans; the best static threshold needs 4.4\%. 
+With covert bots the frozen policies stop only 5--14\% of bots whatever the penalty, while online PPO stops 99--100\% at 16--18\% of humans lost and online DQN 64--72\% at 5--10\%; static policies stop all covert bots only at 27\% of humans lost. 
+The penalty barely moves the frozen policies: their failure under drift comes from trusting the score, which the penalty does not change.
 
-\textbf{Pilot in the v2 world.} To check that these conclusions do not depend on the leave-after-pass assumption, we repeated the study in the abandonment-at-presentation world with a 7-feature state (adding the highest level solved and the number of steps passed). This pilot uses one seed and the validation block, so it is indicative only (Table~\ref{tab:pilot}). The pattern is the same: frozen policies collapse under covert bots, oracle online training recovers both directions, and the posterior reward collapses.
+\begin{figure*}[!t]
+  \centering
+  \includegraphics[width=0.92\textwidth]{images/pareto.pdf}
+  \caption{
+    Pareto-Frontier: Humans lost against bots stopped on the evaluation block. Each purple diamond is the static NP threshold at one human-challenge budget $\alpha\in\{0.01,0.1,0.2\}$; the grey line joins the non-dominated points over every single threshold tested (NP budgets 0.01--0.3 and raw score thresholds 0.1--0.9), the best trade-off a static threshold reaches.
+    % The line is drawn straight between the thresholds that were evaluated, and its bends are marked: small grey dots are raw score thresholds $t$, small purple diamonds NP budgets ($\alpha=0.05$, close to 0.01, is shown only as such a mark). 
+    Each RL marker is the mean over the five false-positive penalties, with bars spanning the range over penalties.
+    % Panel titles give the scorer's chunk-level AUC on the evaluation traffic at that shift. 
+    Better points lie towards the top left.
+  }
+  \label{fig:pareto}
+\end{figure*}
+
+\vspace{-15pt}
+\subsubsection{Recalibrating the Reward with a Small Audit Sample}
+A middle ground between the score-only reward and labelling every user is to audit a random 2\% of users and use their labels to recalibrate the score on the \emph{current} traffic (Eqn. \eqref{eq:recal}, Section~\ref{sec:method}-\ref{sec:rl}); because the audited sample is random, the estimate stays unbiased whatever the drift does to the score. Table~\ref{tab:recal} compares both audit rewards with the other rewards for PPO.
 
 \begin{table}[!t]
-\caption{v2-World Pilot at Full Shift ($\rho=1$): DI, One Seed, Validation Block. At $\rho=0$ Offline DI Is 100.0 (DQN), 99.8 (PPO), 84.5 (TS)}
-\label{tab:pilot}
+\caption{PPO Trained Online Through the Shift with Different Rewards. Online Training: PPO Learns from Scratch for 300 Episodes with the Given Reward, the Shift Starting at Episode 100; DI on the Evaluation Block at the Shifted Point, Mean $\pm$ SD over 5 Training Seeds, with Friction (Seconds of Challenge per Human) in Parentheses; No-Shift Column: the Same Training without the Shift}
+\label{tab:recal}
 \centering
 \footnotesize
 \setlength{\tabcolsep}{3pt}
-\begin{tabular}{lcccccc}
+\resizebox{\columnwidth}{!}{\begin{tabular}{lccccc}
 \toprule
- & \multicolumn{3}{c}{\textbf{Bots look human}} & \multicolumn{3}{c}{\textbf{Humans look bot-like}} \\
-\cmidrule(lr){2-4}\cmidrule(lr){5-7}
-\textbf{Training} & DQN & PPO & TS & DQN & PPO & TS \\
+ & \textbf{No} & \multicolumn{2}{c}{\textbf{Covert bots}} & \multicolumn{2}{c}{\textbf{Bot-like humans}} \\
+\cmidrule(lr){3-4}\cmidrule(lr){5-6}
+\textbf{Reward} & \textbf{shift} & $\rho{=}0.5$ & $\rho{=}1$ & $\rho{=}0.5$ & $\rho{=}1$ \\
 \midrule
-Offline, frozen & 8.9 & 7.6 & $-7.3$ & 46.2 & 48.7 & 50.5 \\
-Online, oracle & 69.6 & 54.3 & 61.9 & 61.4 & 70.4 & 75.0 \\
-Online, score-only & 62.0 & 39.9 & 22.5 & 18.0 & 18.0 & 17.9 \\
-Online, posterior & 0.3 & 5.0 & 3.5 & 17.2 & 13.3 & 16.7 \\
+Label-based (all) & 99.7 $\pm$ 0.5 (0.2) & 80.4 $\pm$ 2.9 (11.5) & 80.6 $\pm$ 1.3 (11.7) & 83.4 $\pm$ 7.1 (5.8) & 82.3 $\pm$ 5.2 (5.4) \\
+\textbf{Audit recal., 2\% labels} & \textbf{97.6} $\pm$ 3.5 (1.5) & 81.7 $\pm$ 1.7 (10.6) & 79.4 $\pm$ 2.3 (12.6) & 74.5 $\pm$ 2.3 (16.2) & 58.1 $\pm$ 9.0 (25.8) \\
+Audit recal., level-9 challenge & 88.7 $\pm$ 4.7 (7.0) & 77.0 $\pm$ 3.9 (13.0) & 72.6 $\pm$ 1.4 (17.2) & 59.5 $\pm$ 1.6 (25.8) & 38.8 $\pm$ 5.6 (38.3) \\
+Score-only & 92.4 $\pm$ 0.4 (4.8) & \textbf{83.6} $\pm$ 1.7 (8.8) & \textbf{82.7} $\pm$ 0.8 (9.4) & 49.8 $\pm$ 0.2 (32.6) & 17.5 $\pm$ 0.2 (52.0) \\
+Posterior (EM share) & 92.7 $\pm$ 1.5 (4.1) & 67.5 $\pm$ 8.7 (4.3) & 5.0 $\pm$ 2.4 (7.3) & 48.2 $\pm$ 1.0 (32.8) & 13.0 $\pm$ 3.3 (56.8) \\
+\midrule
+Static NP threshold$^a$ & 95.6 (2.9) & 54.8 (3.0) & 13.7 (3.0) & 66.1 (22.7) & 40.7 (39.3) \\
+Static NP multi-threshold$^a$ & 94.3 (2.3) & 51.7 (2.3) & 8.5 (2.3) & \textbf{76.8} (12.1) & \textbf{59.9} (21.1) \\
+Static threshold$^a$ & 90.3 (6.4) & 59.2 (6.4) & 28.4 (6.5) & 54.2 (30.1) & 22.5 (51.4) \\
+Static multi-threshold$^a$ & 78.0 (10.7) & 58.4 (10.5) & 39.5 (10.8) & 50.8 (24.7) & 26.3 (36.9) \\
 \bottomrule
-\end{tabular}
+\end{tabular}}
+
+\vspace{2pt}
+{\scriptsize $^a$Untrained static baselines (deterministic, no seed SD).}
 \end{table}
 
+Against covert bots, audit recalibration performs like the score-only reward (81.7 and 79.4, within 2--3.5 points), and without shift it is close to the label-based reward (97.6 against 92.4 for score-only). 
+Its advantage appears when bot-like humans shift the score (Section~\ref{sec:results}-\ref{sec:drift}): there it keeps far more humans than score-only (58.1 against 17.5 at $\rho=1$), because the audit tells the reward what a score means in the current traffic. 
+% Simpler uses of the same 2\% sample (the true reward for audited users, or inverse-rate reweighting) matched score-only to within one point. 
+The challenge audit (Eqn. \eqref{eq:recal_ch}), counting its own friction and lost humans, costs about 4 DI without shift and 7--10 DI on covert bots relative to score-only, because some audited humans fail or leave and its labels are noisy. 
+Audit recalibration with confirmed labels is thus the best reward short of labelling every user; without labels, score-only is the next best choice.
+
+\vspace{-15pt}
+\subsubsection{Training Online Only When a Shift Is Detected}
+Online training is needed under covert bots but costs performance when nothing has changed (PPO: 92.4 always online against 99.8 frozen without drift). 
+We therefore gate it with a label-free change detector: a one-sided CUSUM \cite{page_1954}, $S_t=\max(0,S_{t-1}+z_t-0.5)$, on a per-episode statistic of the users' first-chunk scores, standardised by a 50-episode burn-in, with the threshold set so that at most 5\% of 300-episode no-drift runs alarm. 
+We compare the Kolmogorov--Smirnov distance to the burn-in scores with the share of users in the middle band $[0.25,0.6]$, where neither humans (near 0.1) nor known bots (above 0.8) fall but covert bots do. 
+PPO is trained offline for 200 episodes, deployed frozen, and switched to score-only online training once the detector fires; covert bots arrive 50 episodes into deployment (Table~\ref{tab:gated}).
+
+\begin{table}[!t]
+\caption{Gated Online Training. DI on the Evaluation Block, Mean $\pm$ SD over 5 Training Seeds, with Friction (Seconds of Challenge per Human) in Parentheses}
+\label{tab:gated}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{4pt}
+\resizebox{\columnwidth}{!}{\begin{tabular}{lcccc}
+\toprule
+ & \textbf{No} & \multicolumn{2}{c}{\textbf{Covert bots}} & \textbf{Detection} \\
+\cmidrule(lr){3-4}
+\textbf{Deployment policy} & \textbf{drift} & $\rho{=}0.5$ & $\rho{=}1$ & \textbf{delay}$^a$ \\
+\midrule
+Always frozen & \textbf{99.8} $\pm$ 0.5 (0.1) & 52.9 $\pm$ 1.2 (0.2) & 4.6 $\pm$ 1.7 (0.2) & --- \\
+Always online (score-only) & 92.4 $\pm$ 0.5 (4.8) & 83.8 $\pm$ 2.0 (8.5) & 82.0 $\pm$ 2.3 (9.4) & --- \\
+\textbf{Gated, mid-band CUSUM} & \textbf{99.8} $\pm$ 0.5 (0.1) & \textbf{85.1} $\pm$ 1.2 (8.0) & 82.0 $\pm$ 3.1 (9.0) & \textbf{4 / 1} \\
+Gated, KS CUSUM & \textbf{99.8} $\pm$ 0.5 (0.1) & 74.8 $\pm$ 14.5 (5.2) & 79.0 $\pm$ 6.5 (8.1) & 77$^b$ / 6 \\
+\midrule
+Ungated audit baseline & 98.3 $\pm$ 3.0 (1.1) & 83.3 $\pm$ 2.1 (9.5) & \textbf{82.6} $\pm$ 1.0 (9.8) & --- \\
+\bottomrule
+\end{tabular}}
+
+\vspace{2pt}
+{\scriptsize $^a$Median number of deployment episodes from the arrival of the covert bots to the alarm, at $\rho=0.5$ / $\rho=1$, over 5 seeds; no detector raised an alarm in any no-drift run. $^b$One of the five runs never raised an alarm and is counted as the longest delay.}
+\end{table}
+
+Neither detector fired in any no-drift run, so the gated policies keep the frozen policy's 99.8 and 0.1\,s per human. Under covert bots the mid-band detector fired 1--5 episodes after the attack in every run, and the gated policy matched or exceeded always-online training (85.1 and 82.0, against 83.8 and 82.0), since it adapts from the fully trained offline policy; the KS detector fired after 5--79 episodes, missed one run at $\rho=0.5$, and recovered less (74.8 and 79.0). A frozen policy plus a cheap change detector thus combines the no-drift performance of offline training with the robustness of online training. Because the detector reacts to any change in the score distribution, an alarm should trigger adaptation and operator review rather than be read as proof of an attack.
+
+\vspace{-15pt}
+\subsubsection{Covert Bots That Destroy the Ranking}
+In a stronger attack, a fraction $\rho$ of bots \emph{replay} recorded human mouse trajectories from the evaluation block, so that at $\rho=1$ their score distribution equals the humans' (session AUC 0.75 at $\rho=0.5$, 0.50 at $\rho=1$).
+Every policy, frozen or trained online, static or learned, then degrades linearly to DI $\approx0$ at $\rho=1$ (PPO 0.2, DQN $-0.1$, best static 3.8); even online training with all labels reaches only 22 DI for DQN, by challenging every user.
+This is a limit of the information available, not of the learner: when the attacker reproduces the very features the detector uses, no decision rule built on them can separate the classes, and defending against replay requires signals the attacker has not copied, such as challenge-response behaviour or device and network features.
+
+\vspace{-15pt}
+\subsubsection{Robustness to Bot-Like Humans}
+Legitimate users can also drift towards the bot side of the score, for example with unfamiliar input devices, remote desktops or assistive technology.
+As a false-positive check, a fraction $\rho$ of the evaluation humans is replaced by Balabit users \cite{balabit_2016}, recorded over remote desktop, whom the scorer gives a mean $P(\text{bot})$ of 0.45.
+Frozen DQN and PPO keep DI at 57.9 and 56.4 at $\rho=1$, above the NP threshold (40.7) and the multi-threshold policy (26.3), because they learned to challenge rather than block. 
+The NP multi-threshold does best (59.9), since drifted humans that cross its threshold mostly land in its lower bands, whose challenges humans usually pass (Table~\ref{tab:recal}).
+Online training helps only with the label-based reward (PPO 82.3 at $\rho=1$) or audit recalibration (58.1); the score-only reward, which reads the higher scores as evidence of bots, makes it worse (17.5).
+
 \section{DISCUSSION AND LIMITATIONS}
-\textbf{What the evidence supports.} With a well-calibrated behavioural score, a learned controller separates humans from bots better than static thresholds on held-out recordings, the score is the component that matters most, and the advantage holds when challenge outcomes are stochastic, although the best learner then changes from DQN to Thompson Sampling.
+\subsection{What the Evidence Supports}
+With a reliable behavioural score, a learned controller keeps more humans than static thresholds while stopping the same bots: it spends challenges only where the score and the session history point to a bot. 
+The score is the component that matters most (DI 16.8 without it).
+The Full-RL learners are stable across seeds while contextual bandits are not (10.1-28.3 SD), and the result holds under varying traffic and across reward and simulator constants. 
+The scorer itself transfers to a published benchmark once fine-tuned.
 
-\textbf{What it does not.} (1) \emph{Deployment reward}: the policies need the true class during training. Rewards from observable outcomes fail, and scorer-based rewards are only as good as the scorer; a deployment would need periodic labelled data (e.g., confirmed abuse or manual review) for oracle-style updates and a monitor of the scorer's calibration. (2) \emph{Usability is modelled, not measured}: pass rates, times and abandonment come from published studies of other populations, and no participant interacted with the 11 levels. (3) \emph{Data}: 3 human participants and 4 bot generators; the evaluation block is small and near ceiling. (4) \emph{Simulator}: no real CAPTCHA provider, no request-rate, CPU or latency model (hence no server-resource DoS claim), and no adaptive or VLM-based attacker, although the drift study shows what happens when unseen bots arrive. (5) \emph{Post-hoc choice}: the drift-study scorer seed was chosen after seeing the external data.
+\vspace{-5pt}
+\subsection{Limitations}
+(1) \emph{Deployment reward}: the most robust policies need class information during online training. 
+Rewards from observable outcomes alone fail, and scorer-based rewards are only as good as the scorer. 
+Labelling a random 2\% of users and recalibrating the score with them recovers most of the label-based performance (Table~\ref{tab:recal}).
+When no labels are available, the score-only reward is the fallback, robust to covert bots but not to bot-like humans. 
+(2) \emph{Ranking-destroying attacks}: when bots reproduce the features the scorer uses, no policy built on that score can separate them; new signals are needed. 
+(3) \emph{Usability is modelled, not measured}: pass rates and times come from published studies of other populations and human abandonment is modelled. 
+(4) \emph{Simulator}: no real CAPTCHA provider, no request-rate, CPU or latency model, and no adaptive or VLM-based attacker, although the drift study shows how policies respond when an unseen bot type arrives. 
 
-\textbf{Future work.} A multi-seed run of the v2 world with the extended state and a label-free reward with a fixed bot-share prior is in progress. Beyond it: a user study of the challenge ladder, integration with real CAPTCHA providers, a queueing model for server load, and attackers that adapt to the learned policy.
+\vspace{-5pt}
+\subsection{Future Work}
+A user study of the challenge ladder, abandonment measured at the moment a challenge is shown, integration with real CAPTCHA providers, a queueing model for server load, attackers that adapt to the learned policy, and label-efficient rewards that stay robust when the scorer drifts.
 
 \section{CONCLUSION}
-We framed CAPTCHA orchestration as learning a mapping from a calibrated behavioural score and session context to an 11-level challenge ladder, and evaluated it in a simulator grounded in published CAPTCHA user studies with a leakage-controlled data protocol. On held-out recordings DQN reaches 98.9 DI ($\pm$0.4 over seeds) against 78.7 for the best static policy, and without the score it drops to 23.6; with stochastic challenge outcomes Thompson Sampling performs best. The same experiments show where the approach stops: no reward computed from observable outcomes alone trained a working policy, and policies trained or adapted with scorer-derived rewards inherit the scorer's miscalibration. A practical system therefore needs a calibrated scorer, a source of occasional ground-truth labels, and calibration monitoring; with those, RL is a viable replacement for hand-tuned score thresholds.
+We framed CAPTCHA orchestration as learning a mapping from a calibrated behavioural score and session context to an 11-level intervention ladder, and evaluated it in a simulator grounded in published CAPTCHA user studies, with a leakage-controlled data protocol.
+On held-out recordings PPO and DQN reach DI 99.8 and 97.8 against 95.5 for the best static policy, and without the score DQN falls to 16.8. 
+% The efficient LSTM scorer, after fine-tuning, classifies every test session of a public web-bot benchmark correctly.
+The scorer-only PPO online model adapts to calibration shift due to covert bots, beating all static methods and matching labelled approaches.  
+With online training only when dataset drift is detected, score-only PPO matches or exceeds all labelled approaches.
+We also shows the limitations of this approach: no reward computed from observable outcomes alone adapted to a ranking-destroying attack, and policies trained or adapted with scorer-derived rewards inherit the scorer's miscalibration.
+A practical system therefore needs a calibrated scorer, occasional ground-truth labels and calibration monitoring. 
+With these, RL is a viable replacement for hand-tuned score thresholds.
 
 \section*{ACKNOWLEDGMENT}
-AI tools were used for language editing and formatting. The authors thank the participants who provided mouse-movement data.
+AI tools were used for language editing and formatting. 
+The authors thank the participants who provided mouse-movement data.
 
 \begin{thebibliography}{10}
 \bibitem{imperva2025} Imperva, ``2025 Imperva Bad Bot Report,'' Thales Group, 2025.
-\bibitem{mazilu2022} M.~C.~Mazilu, ``Web scraping and ethics in automated data collection,'' in \emph{Smart Innovation, Systems and Technologies}, vol.~276. Springer, 2022.
 \bibitem{ferrara2016} E.~Ferrara, O.~Varol, C.~Davis, F.~Menczer, and A.~Flammini, ``The rise of social bots,'' \emph{Commun. ACM}, vol.~59, no.~7, pp.~96--104, 2016.
-\bibitem{ba2021} M.~H.~N.~Ba, J.~Bennet, M.~Gallagher, and S.~Bhunia, ``A case study of credential stuffing attack: Canva data breach,'' in \emph{Proc. Int. Conf. Comput. Sci. Comput. Intell. (CSCI)}, 2021.
+\bibitem{ba2021} M.~H.~N.~Ba, J.~Bennett, M.~Gallagher, and S.~Bhunia, ``A case study of credential stuffing attack: Canva data breach,'' in \emph{Proc. Int. Conf. Comput. Sci. Comput. Intell. (CSCI)}, 2021.
 \bibitem{von_2003} L.~von~Ahn, M.~Blum, N.~J.~Hopper, and J.~Langford, ``CAPTCHA: Using hard AI problems for security,'' in \emph{Advances in Cryptology -- EUROCRYPT 2003}, pp.~294--311.
 \bibitem{guerar2021} M.~Guerar, L.~Verderame, M.~Migliardi, F.~Palmieri, and A.~Merlo, ``Gotta CAPTCHA 'em all: A survey of 20 years of the human-or-computer dilemma,'' \emph{ACM Comput. Surv.}, vol.~54, no.~9, Art.~192, 2021.
 \bibitem{bursztein_humans_2010} E.~Bursztein, S.~Bethard, C.~Fabry, J.~C.~Mitchell, and D.~Jurafsky, ``How good are humans at solving CAPTCHAs? A large scale evaluation,'' in \emph{Proc. IEEE Symp. Security and Privacy}, 2010, pp.~399--413, doi: 10.1109/SP.2010.31.
 \bibitem{captcha_study_2023} A.~Searles, Y.~Nakatsuka, E.~Ozturk, A.~Paverd, G.~Tsudik, and A.~Enkoji, ``An empirical study \& evaluation of modern CAPTCHAs,'' in \emph{Proc. 32nd USENIX Security Symp.}, 2023, pp.~3081--3097.
-\bibitem{qi2026} M.~Qi \emph{et al.}, ``VIPER Strike: Defeating visual reasoning CAPTCHAs via structured vision-language inference,'' arXiv:2601.06461, 2026.
-\bibitem{wu2025mca_bench} Z.~Wu \emph{et al.}, ``MCA-Bench: A multimodal benchmark for evaluating CAPTCHA robustness against VLM-based attacks,'' arXiv:2506.05982, 2025.
+\bibitem{qi2026} M.~Qi \emph{et al.}, ``VIPER Strike: Defeating visual reasoning CAPTCHAs via structured vision-language inference,'' in \emph{Proc. 35th USENIX Security Symp.}, 2026.
+\bibitem{wu2025mca_bench} Z.~Wu \emph{et al.}, ``MCA-Bench: A multimodal benchmark for evaluating CAPTCHA robustness against VLM-based attacks,'' in \emph{Proc. AAAI Conf. Artif. Intell.}, vol.~40, no.~44, 2026.
 \bibitem{plesner2024yolo} A.~Plesner, T.~Vontobel, and R.~Wattenhofer, ``Breaking reCAPTCHAv2,'' in \emph{Proc. IEEE COMPSAC}, 2024.
 \bibitem{reCAPTCHA} Google reCAPTCHA. [Online]. Available: \url{https://www.google.com/recaptcha/about}
 \bibitem{sepczuk_2018} M.~Sepczuk and Z.~Kotulski, ``A new risk-based authentication management model oriented on user's experience,'' \emph{Comput. Secur.}, vol.~73, pp.~17--33, 2018.
@@ -368,34 +702,45 @@ AI tools were used for language editing and formatting. The authors thank the pa
 \bibitem{yousef_2023} W.~A.~Yousef, I.~Traor\'e, and W.~Briguglio, ``Classifier calibration: With application to threat scores in cybersecurity,'' \emph{IEEE Trans. Dependable Secure Comput.}, vol.~20, no.~3, pp.~1994--2010, 2023.
 \bibitem{cloudArmour} Google Cloud Armor. [Online]. Available: \url{https://cloud.google.com/security/products/armor}
 \bibitem{umar_2022} M.~Umar and S.~Ayyub, ``A review on evolution of various CAPTCHA in the field of web security,'' \emph{IJRASET}, 2022.
+\bibitem{iliou_2021} C.~Iliou, T.~Kostoulas, T.~Tsikrika, V.~Katos, S.~Vrochidis, and I.~Kompatsiaris, ``Detection of advanced web bots by combining web logs with mouse behavioural biometrics,'' \emph{Digit. Threats: Res. Pract.}, vol.~2, no.~3, Art.~24, 2021, doi: 10.1145/3447815.
 \bibitem{yan2008captcha} J.~Yan and A.~S.~El~Ahmad, ``Usability of CAPTCHAs or usability issues in CAPTCHA design,'' in \emph{Proc. SOUPS}, 2008.
 \bibitem{bursztein2014new} E.~Bursztein, J.~Aigrain, A.~Moscicki, and J.~C.~Mitchell, ``The end is nigh: Generic solving of text-based CAPTCHAs,'' in \emph{Proc. USENIX WOOT}, 2014.
 \bibitem{akrout2019} I.~Akrout, A.~Feriani, and M.~Akrout, ``Hacking Google reCAPTCHA v3 using reinforcement learning,'' arXiv:1903.01003, 2019.
-\bibitem{clip_2021} A.~Radford \emph{et al.}, ``Learning transferable visual models from natural language supervision,'' in \emph{Proc. ICML}, PMLR vol.~139, pp.~8748--8763, 2021.
-\bibitem{khan_2023} S.~Khan, C.~Devlen, M.~Manno, and D.~Hou, ``Mouse dynamics behavioral biometrics: A survey,'' \emph{ACM Comput. Surv.}, vol.~56, no.~6, pp.~1--33, 2024, doi: 10.1145/3640311.
-\bibitem{shen_2013} C.~Shen, Z.~Cai, X.~Guan, and J.~Wang, ``Mouse dynamics for continuous user authentication: An experimental analysis,'' in \emph{Proc. NSS}, Springer, 2013, pp.~250--261.
-\bibitem{antal_2019} M.~Antal and E.~Egyed-Zsigmond, ``Intrusion detection using mouse dynamics,'' \emph{IET Biometrics}, vol.~8, no.~5, pp.~285--294, 2019.
-\bibitem{fittslaw2019} M.~Takeda, T.~Sato, H.~Saito, H.~Iwasaki, I.~Nambu, and Y.~Wada, ``Explanation of Fitts' law in reaching movement based on human arm dynamics,'' \emph{Sci. Rep.}, vol.~9, Art.~19804, 2019.
-\bibitem{bezier2025} S.~Adarsh, P.~V.~V.~Sankaranarayanan, and P.~A.~Suresh, ``Emulating human-like mouse movement using B\'ezier curves and behavioural models for advanced web automation,'' \emph{IJIRT}, vol.~12, no.~1, 2025.
 \bibitem{bezier_bots_2022} A.~Acien, A.~Morales, J.~Fierrez, and R.~Vera-Rodriguez, ``BeCAPTCHA-Mouse: Synthetic mouse trajectories and improved bot detection,'' \emph{Pattern Recognit.}, vol.~127, 2022.
+\bibitem{khan_2023} S.~Khan, C.~Devlen, M.~Manno, and D.~Hou, ``Mouse dynamics behavioral biometrics: A survey,'' \emph{ACM Comput. Surv.}, vol.~56, no.~6, pp.~1--33, 2024, doi: 10.1145/3640311.
+\bibitem{shen_2013} C.~Shen, Z.~Cai, X.~Guan, Y.~Du, and R.~A.~Maxion, ``User authentication through mouse dynamics,'' \emph{IEEE Trans. Inf. Forensics Security}, vol.~8, no.~1, pp.~16--30, 2013.
+\bibitem{fittslaw2019} M.~Takeda, T.~Sato, H.~Saito, H.~Iwasaki, I.~Nambu, and Y.~Wada, ``Explanation of Fitts' law in reaching movement based on human arm dynamics,'' \emph{Sci. Rep.}, vol.~9, Art.~19804, 2019.
+\bibitem{bezier2025} S.~Adarsh, P.~Venkateshan, and P.~A.~Suresh, ``Emulating human-like mouse movement using B\'ezier curves and behavioural models for advanced web automation,'' \emph{IJIRT}, vol.~12, no.~1, 2025.
 \bibitem{antal_2021_sapi} M.~Antal, K.~Buza, and N.~Fejer, ``SapiAgent: A bot based on deep learning to generate human-like mouse trajectories,'' \emph{IEEE Access}, vol.~9, 2021.
-\bibitem{iliou_2021} C.~Iliou, T.~Kostoulas, T.~Tsikrika, V.~Katos, S.~Vrochidis, and I.~Kompatsiaris, ``Detection of advanced web bots by combining web logs with mouse behavioural biometrics,'' \emph{Digit. Threats: Res. Pract.}, vol.~2, no.~3, Art.~24, 2021, doi: 10.1145/3447815.
 \bibitem{acien_2021} A.~Acien, A.~Morales, J.~Fierrez, R.~Vera-Rodriguez, and O.~Delgado-Mohatar, ``BeCAPTCHA: Behavioral bot detection using touchscreen and mobile sensors benchmarked on HuMIdb,'' \emph{Eng. Appl. Artif. Intell.}, vol.~98, 2021.
 \bibitem{hochreiter_lstm_1997} S.~Hochreiter and J.~Schmidhuber, ``Long short-term memory,'' \emph{Neural Comput.}, vol.~9, no.~8, pp.~1735--1780, 1997, doi: 10.1162/neco.1997.9.8.1735.
-\bibitem{wei2021deeplearning} D.~Wei \emph{et al.}, ``Predicting mouse click position using long short-term memory model trained by joint loss function,'' in \emph{Proc. CHI EA}, 2021.
-\bibitem{aura_captcha_2025} R.~Sahay \emph{et al.}, ``Aura-CAPTCHA: A reinforcement learning and GAN-enhanced multi-modal CAPTCHA system,'' arXiv:2508.14976, 2025.
+\bibitem{he_seq_2021} Z.~He, Y.~Song, S.~Zhou, and Z.~Cai, ``Mouse dynamics based bot detection using sequence learning,'' in \emph{Proc. Chinese Conf. Biometric Recognit. (CCBR)}, 2021, pp.~49--56.
+\bibitem{aura_captcha_2025} J.~Chandra \emph{et al.}, ``Aura-CAPTCHA: A reinforcement learning and GAN-enhanced multi-modal CAPTCHA system,'' arXiv:2508.14976, 2025.
 \bibitem{li_linucb_2010} L.~Li, W.~Chu, J.~Langford, and R.~E.~Schapire, ``A contextual-bandit approach to personalized news article recommendation,'' in \emph{Proc. 19th Int. Conf. World Wide Web}, 2010, pp.~661--670, doi: 10.1145/1772690.1772758.
 \bibitem{russo_ts_2018} D.~J.~Russo, B.~Van~Roy, A.~Kazerouni, I.~Osband, and Z.~Wen, ``A tutorial on Thompson sampling,'' \emph{Found. Trends Mach. Learn.}, vol.~11, no.~1, pp.~1--96, 2018, doi: 10.1561/2200000070.
 \bibitem{mnih_dqn_2015} V.~Mnih \emph{et al.}, ``Human-level control through deep reinforcement learning,'' \emph{Nature}, vol.~518, no.~7540, pp.~529--533, 2015, doi: 10.1038/nature14236.
 \bibitem{schulman_ppo_2017} J.~Schulman, F.~Wolski, P.~Dhariwal, A.~Radford, and O.~Klimov, ``Proximal policy optimization algorithms,'' arXiv:1707.06347, 2017.
 \bibitem{sutton2018reinforcement} R.~S.~Sutton and A.~G.~Barto, \emph{Reinforcement Learning: An Introduction}, 2nd~ed. MIT Press, 2018.
 \bibitem{cui_2025} Y.~Cui, X.~Han, J.~Chen, X.~Zhang, J.~Yang, and X.~Zhang, ``FraudGNN-RL: A graph neural network with reinforcement learning for adaptive financial fraud detection,'' \emph{IEEE Open J. Comput. Soc.}, 2025.
-\bibitem{huang_2018} C.~Huang, Y.~Wu, Y.~Zuo, K.~Pei, and G.~Min, ``Towards experienced anomaly detector through reinforcement learning,'' in \emph{Proc. AAAI}, 2018.
 \bibitem{mvula_2023} P.~K.~Mvula, P.~Branco, G.-V.~Jourdan, and H.~L.~Viktor, ``A systematic literature review of cyber-security data repositories and performance assessment metrics for semi-supervised learning,'' \emph{Discover Data}, 2023.
-\bibitem{guo_calibration_2017} C.~Guo, G.~Pleiss, Y.~Sun, and K.~Q.~Weinberger, ``On calibration of modern neural networks,'' in \emph{Proc. ICML}, 2017, pp.~1321--1330.
-\bibitem{fscore_2023} P.~Christen, D.~J.~Hand, and N.~Kirielle, ``A review of the F-measure: Its history, properties, criticism, and alternatives,'' \emph{ACM Comput. Surv.}, vol.~56, no.~3, Art.~73, 2023.
-\bibitem{holm_1979} S.~Holm, ``A simple sequentially rejective multiple test procedure,'' \emph{Scand. J. Statist.}, vol.~6, no.~2, pp.~65--70, 1979.
+\bibitem{arp_2022} D.~Arp \emph{et al.}, ``Dos and don'ts of machine learning in computer security,'' in \emph{Proc. 31st USENIX Security Symp.}, 2022.
+\bibitem{wolpert_1992} D.~H.~Wolpert, ``Stacked generalization,'' \emph{Neural Netw.}, vol.~5, no.~2, pp.~241--259, 1992, doi: 10.1016/S0893-6080(05)80023-1.
+\bibitem{chernozhukov_2018} V.~Chernozhukov, D.~Chetverikov, M.~Demirer, E.~Duflo, C.~Hansen, W.~Newey, and J.~Robins, ``Double/debiased machine learning for treatment and structural parameters,'' \emph{Econometrics J.}, vol.~21, no.~1, pp.~C1--C68, 2018.
 \bibitem{balabit_2016} \'A.~F\"ul\"op, L.~Kov\'acs, T.~Kurics, and E.~Windhager-Pokol, Balabit Mouse Dynamics Challenge data set, 2016. [Online]. Available: \url{https://github.com/balabit/Mouse-Dynamics-Challenge}
+\bibitem{guo_calibration_2017} C.~Guo, G.~Pleiss, Y.~Sun, and K.~Q.~Weinberger, ``On calibration of modern neural networks,'' in \emph{Proc. ICML}, 2017, pp.~1321--1330.
+\bibitem{scott_nowak_2005} C.~Scott and R.~Nowak, ``A Neyman--Pearson approach to statistical learning,'' \emph{IEEE Trans. Inf. Theory}, vol.~51, no.~11, pp.~3806--3819, 2005, doi: 10.1109/TIT.2005.856955.
+\bibitem{tong_np_2018} X.~Tong, Y.~Feng, and J.~J.~Li, ``Neyman--Pearson classification algorithms and NP receiver operating characteristics,'' \emph{Sci. Adv.}, vol.~4, no.~2, eaao1659, 2018, doi: 10.1126/sciadv.aao1659.
+\bibitem{platt_1999} J.~C.~Platt, ``Probabilistic outputs for support vector machines and comparisons to regularized likelihood methods,'' in \emph{Advances in Large Margin Classifiers}, A.~J.~Smola, P.~Bartlett, B.~Sch\"olkopf, and D.~Schuurmans, Eds. Cambridge, MA, USA: MIT Press, 2000, pp.~61--74.
+\bibitem{saerens_2002} M.~Saerens, P.~Latinne, and C.~Decaestecker, ``Adjusting the outputs of a classifier to new a priori probabilities: A simple procedure,'' \emph{Neural Comput.}, vol.~14, no.~1, pp.~21--41, 2002, doi: 10.1162/089976602753284446.
+\bibitem{zadrozny_2001} B.~Zadrozny and C.~Elkan, ``Obtaining calibrated probability estimates from decision trees and naive Bayesian classifiers,'' in \emph{Proc. ICML}, 2001, pp.~609--616.
+\bibitem{forman_2008} G.~Forman, ``Quantifying counts and costs via classification,'' \emph{Data Min. Knowl. Discov.}, vol.~17, no.~2, pp.~164--206, 2008, doi: 10.1007/s10618-008-0097-y.
+\bibitem{riquelme_2018} C.~Riquelme, G.~Tucker, and J.~Snoek, ``Deep Bayesian bandits showdown: An empirical comparison of Bayesian deep networks for Thompson sampling,'' in \emph{Proc. ICLR}, 2018.
+\bibitem{hong_mixts_2022} J.~Hong, B.~Kveton, M.~Zaheer, M.~Ghavamzadeh, and C.~Boutilier, ``Thompson sampling with a mixture prior,'' in \emph{Proc. AISTATS}, PMLR vol.~151, 2022, pp.~7565--7586.
+\bibitem{birnbaum_1968} A.~Birnbaum, ``Some latent trait models and their use in inferring an examinee's ability,'' in F.~M.~Lord and M.~R.~Novick, \emph{Statistical Theories of Mental Test Scores}. Reading, MA: Addison-Wesley, 1968, pp.~397--479.
+\bibitem{embretson_irt_2000} S.~E.~Embretson and S.~P.~Reise, \emph{Item Response Theory for Psychologists}. Mahwah, NJ: Lawrence Erlbaum, 2000.
+\bibitem{baker_irt_2001} F.~B.~Baker, \emph{The Basics of Item Response Theory}, 2nd~ed. College Park, MD: ERIC Clearinghouse on Assessment and Evaluation, 2001.
+\bibitem{schulman_gae_2016} J.~Schulman, P.~Moritz, S.~Levine, M.~Jordan, and P.~Abbeel, ``High-dimensional continuous control using generalized advantage estimation,'' in \emph{Proc. ICLR}, 2016.
+\bibitem{fscore_2023} P.~Christen, D.~J.~Hand, and N.~Kirielle, ``A review of the F-measure: Its history, properties, criticism, and alternatives,'' \emph{ACM Comput. Surv.}, vol.~56, no.~3, Art.~73, 2024.
+\bibitem{page_1954} E.~S.~Page, ``Continuous inspection schemes,'' \emph{Biometrika}, vol.~41, no.~1--2, pp.~100--115, 1954, doi: 10.1093/biomet/41.1-2.100.
 \end{thebibliography}
-
 \end{document}

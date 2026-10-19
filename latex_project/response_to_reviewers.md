@@ -1,82 +1,86 @@
 # Response to Reviewers
 
-We thank the editors and reviewers. Every number below appears in the revised manuscript and is taken from saved experiment outputs. Section, table and figure numbers refer to the revised manuscript.
+We thank the editors and reviewers. Every number below appears in the revised manuscript and comes from saved experiment outputs. Section, table and figure numbers refer to the revised manuscript.
 
 ## Associate Editor
 
-- **Gap between Table 4 and the claims.** The main table has been rebuilt on held-out recordings. Intervals are now computed across 5 training seeds, and the zero-bot case is excluded (Table 4).
-- **Claims narrowed.** A scope table separates what was evaluated, what was implemented and what is only proposed (Table 1). Usability is described as *modelled*. The server-resource DoS claim has been removed.
-- **Clarity and examples.** Methodology bullet lists are now prose. We added:
-  - a worked example (§III-D);
-  - a parameter table with the source of each value (Table 2);
-  - an LSTM figure (Fig. 2).
+- **Gap between Table 4 and the claims.** The main comparison is rebuilt on held-out recordings in a stochastic, literature-grounded simulator. Intervals are 95% CIs over 5 training seeds, and the zero-bot case is excluded (Table 4).
+- **Claims narrowed.** §I-A states what was evaluated and what is only proposed. Usability is described as *modelled*, and the server-resource DoS claim is removed.
+- **Clarity.** The methodology is now prose. We added a worked example (§III-D), a configuration table giving the source of every value (Table 2), and a scorer figure (Fig. 2).
 
 ## Reviewer 1
 
 **1. Deterministic simulator; the deployed reward is unknown.**
-- **Stochastic bot model.** Bots now solve challenges with an item-response probability, σ(1.5(B_s + 0.5 − T)).
-- **Human pass rates, solve times and abandonment** come from Bursztein et al. 2010 and Searles et al. 2023 (§III-F, Table 2).
-- **Results in the stochastic world** are in Table 5. Thompson Sampling has the highest DI there (91.5 vs 88.6 for DQN), which qualifies the original DQN-first claim.
-- **Deployable rewards are tested in §IV-D.**
-  - All 12 rewards computed from observable outcomes collapse to "never challenge".
-  - Scorer-based rewards work when the scorer is accurate, but inherit its errors under drift (§IV-E, Fig. 4).
-  - The oracle reward needs true labels, and we state this explicitly.
+- **Bots** now solve challenges with an item-response probability, σ(1.5(B_s + 0.5 − T)). **Human** pass rates and solve times come from Bursztein et al. (2010) and Searles et al. (2023) (§III-F, Table 1).
+- **Results.** In this world PPO and DQN reach DI 99.8 and 97.8, against 95.5 for the best static policy, a Neyman–Pearson threshold (Table 4).
+- **Deployable rewards** (§IV-D):
+  - All 12 rewards computed only from observable outcomes collapse to "never challenge".
+  - Two scorer-based rewards do train working policies.
+  - The label-based reward needs true labels, and the paper says so.
+- **Online training under drift** (§IV-E):
+  - When covert bots break the scorer's calibration, frozen RL policies degrade faster than static thresholds.
+  - Online training with the label-free score-only reward recovers this. PPO keeps DI 82.7 at ρ = 1, against 3.8 frozen and 39.5 for the best static policy (Fig. 4).
+  - The EM-based posterior reward fails here, because it inherits the scorer's blind spot.
+  - Recalibrating the reward from a random 2% audit sample works under both covert bots and bot-like humans (Table 5).
+- **Gated online training.** Always-online training costs performance when nothing has changed (92.4 against 99.8 frozen). We therefore keep the policy frozen until an unsupervised CUSUM detector on the incoming scores raises an alarm. The detector needs no labels. It never fired in any no-drift run, and it detected covert bots within 1–5 episodes. The gated policy keeps the frozen policy’s 99.8 without drift and reaches 85.1 and 82.0 under covert bots, at least as good as always-online training (Table 6).
+- **Trade-off between humans lost and bots stopped** (Fig. 5).
+  - Without drift, PPO stops every bot while losing under 1% of humans; the best static threshold loses 4.4%.
+  - Under covert bots, static thresholds stop all bots only at 27% of humans lost.
+- **Stated limit.** Bots that replay human trajectories destroy the score's ranking, and then every policy reaches DI ≈ 0.
 
 **2. Train/evaluation independence.**
-- **Split point.** The split is made at the recording level, before windowing.
-- **Partition.** Scorer, RL and evaluation blocks are rotated across folds. In fold 2, the evaluation block has 14 humans and 36 bots and is never used for fitting or model selection.
-- **Cross-fitting.** Scorers are cross-fitted so that every RL training session is scored by a model that did not see it.
-- **Augmentation.** None is used: a search showed it does not help the correctly sized model.
-- **Counts.** 156 recordings: 44 human (from 3 participants) and 112 bot.
-- **Leakage test.** A role-reversal test measures a leakage gap of 4.5 DI (SE 2.1) for DQN, and exactly 0 for static policies. The policy ranking survives on unseen recordings.
+- Recordings are split before windowing into scorer, RL and evaluation blocks, rotated across folds. The fold-2 evaluation block (14 humans, 36 bots) is never used for fitting or model selection.
+- Scorers are cross-fitted, so every RL training session is scored by a model that did not see it.
+- No data augmentation is used.
+- The dataset has 156 recordings: 44 human, from 3 participants, and 112 bot (§III-B).
 
 **3. Reward scale; usability claims.**
-- **Friction.** The exponential friction term (−999 at T = 10) is replaced by a cost per measured second.
-- **After a leaving event.** The session ends.
-- **Reward sensitivity.** Retraining under 9 reward settings (5 seeds each) beats every static baseline in all 9. 3 of 45 runs collapsed, and we disclose them.
-- **Leave-after-pass.** This is now labelled an assumption. A sensitivity world that uses Searles' abandonment-at-presentation rates is reported as a pilot (Table 6).
-- **Wording.** Usability is described as modelled in the abstract, the discussion and the conclusion.
+- **Friction.** The exponential friction term is replaced by a cost per measured second of challenge time.
+- **Leaving after a pass** is labelled an assumption. With τ varied from 22 s to no leaving, PPO and DQN remain the best policies at every value (§IV-C).
+- **Reward constants.** DQN retrained under 9 alternative reward settings beats the static threshold on average in every setting. The one seed that degraded is reported.
+- **Wording.** Usability is described as modelled throughout.
 
 **4. Table 4: zero-bot case, standard deviations, "significantly".**
-- Zero-bot traffic is removed from every metric and average.
-- ± is now a 95% CI over 5 training seeds, and we also report the worst seed.
+- Zero-bot traffic is removed from every metric.
+- ± is a 95% CI over 5 training seeds, and the worst seed is also reported.
 - "Significant" is used only for Welch tests with Holm correction.
 
 **5. DoS claim and the population confound.**
-- The server-resource DoS claim has been removed.
-- Training now draws humans (50–250) and bots (0–1000) independently.
-- **Evaluation with both populations varied.** Table 4 has a new column for traffic in which human (64–239) and bot (3–717) counts are drawn independently for each run, on the same held-out recordings and 5 training seeds. The results barely change: DQN 99.7 ± 0.1, Thompson Sampling 88.9 ± 17.6, best static 78.1, DQN without the score 21.5. The counts are drawn per run, not crossed in a full factorial grid.
-- Freezing the active-user feature changes human survival by at most 4.4 points and bot survival by at most 1.8. It does change the share of users challenged (0.204–0.357 vs 0.305), and we report this.
+- The server-resource DoS claim is removed.
+- Training draws humans (50–250) and bots (0–1000) independently.
+- Table 4 adds a varying-traffic column, with 50–250 humans and bots making up 5–75% of users. Results are unchanged: PPO 99.96, DQN 99.4, best static 95.2.
+- Freezing the active-user feature leaves bot survival at zero. The feature controls how cautious the policy is, not whether it stops bots (§IV-C).
 
 **6. Reproducibility.**
-- **Training details.** Episodes, steps per episode, seeds, architecture searches and all hyperparameters are in Table 2.
-- **Bandit statistics.** These are recomputed in the final embedding space (§III-E).
-- **Per-class replay buffers.** These use the true class, as the oracle reward does. For label-free rewards they are balanced on the observable outcome instead. Both are stated in the paper.
+- Table 2 gives episodes, seeds, architectures and all hyperparameters, with how each was selected.
+- §III-E gives the update rules of all four learners.
+- Bandit statistics are recomputed in the final embedding space.
+- The Thompson Sampling posterior was chosen from four variants: diagonal Gaussian, full Gaussian, and mixtures of two and three Gaussians.
 
 **7. Scorer description and calibration.**
-- **Description.** It now matches the model used: one 32-unit LSTM, a 32-unit dense layer, a sigmoid output and temperature scaling; 6,081 parameters.
-- **Inputs.** Δx, Δy, Δt, speed and acceleration, plus a mask channel (Fig. 2).
-- **Calibration.** ECE falls from 0.064 to 0.046 after temperature scaling; Brier score is 0.065.
-- **Unseen users.** Leave-one-campaign-out AUC is 0.890.
+- **Description.** It now matches the model used: one 32-unit LSTM, a 32-unit ReLU layer and a linear logit (6,081 parameters). Training uses a sigmoid with cross-entropy. At inference the logit is calibrated by temperature scaling, T = 1.14 (§III-C, Fig. 2).
+- **Calibration.** On the evaluation block, the Brier score is 0.032 and ECE is 0.053. We report that temperature scaling does not reduce ECE there (§IV-A).
 
-**8. Scope narrower than the motivation.** Table 1 separates what was evaluated, implemented and proposed. VLM-based and adaptive attackers are listed as not evaluated.
+**8. Scope narrower than the motivation.** §I-A lists what was not evaluated: mobile SDKs, fingerprinting, real CAPTCHA providers, server load, adaptive or VLM-based attackers, and a user study.
 
 **9. External-dataset protocol.**
-- **Withdrawn results.** On re-examination, the original fine-tuning results did not support a bot-detection claim, and we have withdrawn them (§IV-A):
-  - Balabit contains humans only.
-  - The web-bot runs split windows at random and used the test set for early stopping.
-- **New role for external data.** It is used only as unseen populations, with session-level and user-level splits, in the drift study.
+- The original fine-tuning results are withdrawn. Balabit contains only humans, and the web-bot runs split windows at random.
+- They are replaced by a reproducible benchmark comparison, described in §IV-A:
+  - It uses the official session-level splits of Iliou et al.'s D1 and D2.
+  - Early stopping uses validation sessions held out from training, never the test set.
+  - Results are averaged over 5 seeds.
+- The fine-tuned scorer classifies every test session correctly. This matches their mouse module on D1 and exceeds it on D2, the human-like bots (1.00 vs 0.93) (Table 3).
+- The external populations otherwise serve only as unseen data in the drift study.
 
 **Minor comments.**
-- **Ethics statement.** Participant count added.
-- **References corrected:** Khan et al. (2024, ACM CSUR 56(6)), Iliou et al. (DOI), Searles et al. (authors, pages).
-- **References removed:** the uncited [4], and [6], [14], [33] and [45], which are no longer cited. L-MACD could not be verified in any index and was dropped.
-- **Foundational citations added:** LinUCB (Li et al. 2010), Thompson Sampling (Russo et al. 2018), DQN (Mnih et al. 2015), PPO, LSTM (Hochreiter & Schmidhuber 1997), temperature scaling (Guo et al. 2017), and CAPTCHA usability (Bursztein et al. 2010).
-- **Figures and language.** All figures are referenced in the text, and the language has been revised.
+- **Ethics statement and participant count** added.
+- **References** corrected, and unverifiable or uncited ones removed.
+- **Foundational citations added** for DQN, PPO, LinUCB, Thompson Sampling, LSTM, temperature scaling, CUSUM, dataset shift and CAPTCHA usability.
+- **Figures.** All figures are referenced in the text.
 
 ## Reviewer 2
 
 1. "Difficulty in design" and "research gaps" are now in the Introduction.
-2. The methodology is written as prose, with motivation and references, a worked example (§III-D) and the architecture figure.
-3. An LSTM figure and the reasons for the design are given (§III-C, Fig. 2).
-4. Every parameter's source is listed: literature, cross-validated search, or a stated assumption with its sensitivity range (Table 2).
+2. The methodology is written as prose, with motivation, references, a worked example (§III-D) and architecture figures.
+3. The scorer figure and the reasons for its design are given (§III-C, Fig. 2).
+4. Table 2 lists each parameter's source: literature, cross-validated search, or a stated assumption with its tested sensitivity range.

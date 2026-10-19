@@ -502,7 +502,7 @@ DQN was retrained (5 seeds each) under nine alternative reward settings: leak pe
 
 \vspace{-15pt}
 \subsubsection{Population Input}
-Freezing DQN's active-user feature at 25, 100 or 400 regardless of the real traffic leaves bot survival at zero (DI 100.0, against 96.6 unfrozen on the same grid of 25--400 humans and 20--1000 bots). Freezing it at 1400, above anything seen in training, makes the policy challenge more and keep fewer humans (87\%). The population count therefore controls how cautious the policy is, not whether it stops bots; detection comes from the score.
+Freezing DQN's active-user feature at 25, 100 or 400 regardless of the real traffic leaves bot survival at zero (DI 100.0, against 97.0 unfrozen on the same grid of 25--400 humans and 20--1000 bots). Freezing it at 1400, above anything seen in training, makes the policy challenge more and keep fewer humans (87\%). The population count therefore controls how cautious the policy is, not whether it stops bots; detection comes from the score.
 
 % \vspace{-5pt}
 % \subsection{Rewards a Deployment Could Compute}
@@ -545,7 +545,7 @@ The posterior reward is the exception: its EM estimate of the bot share treats c
 A reward that estimates the bot population from the score inherits the scorer's blind spot.
 
 \emph{Trade-off between humans lost and bots stopped:} Fig.~\ref{fig:pareto} sweeps each method's trade-off parameter: the NP budget $\alpha$ for the static policy and the false-positive penalty $R_{\text{FP}}\in\{-25,\dots,-400\}$ for DQN and PPO, trained offline (frozen) or online through the covert bots with the score-only reward (3 seeds each). 
-Without drift, offline PPO stops every bot while losing under 1\% of humans; the best static threshold needs 4.4\%. 
+Without drift, offline PPO stops every bot while losing under 1\% of humans; the best static threshold needs 4.3\%. 
 With covert bots the frozen policies stop only 5--14\% of bots whatever the penalty, while online PPO stops 99--100\% at 16--18\% of humans lost and online DQN 64--72\% at 5--10\%; static policies stop all covert bots only at 27\% of humans lost. 
 The penalty barely moves the frozen policies: their failure under drift comes from trusting the score, which the penalty does not change.
 
@@ -638,7 +638,7 @@ Neither detector fired in any no-drift run, so the gated policies keep the froze
 \vspace{-15pt}
 \subsubsection{Covert Bots That Destroy the Ranking}
 In a stronger attack, a fraction $\rho$ of bots \emph{replay} recorded human mouse trajectories from the evaluation block, so that at $\rho=1$ their score distribution equals the humans' (session AUC 0.75 at $\rho=0.5$, 0.50 at $\rho=1$).
-Every policy, frozen or trained online, static or learned, then degrades linearly to DI $\approx0$ at $\rho=1$ (PPO 0.2, DQN $-0.1$, best static 3.8); even online training with all labels reaches only 22 DI for DQN, by challenging every user.
+Every policy, frozen or trained online, static or learned, then degrades roughly linearly with $\rho$. At $\rho=1$ the frozen RL policies and the single static threshold are near zero (PPO 0.2, DQN $-0.1$, single threshold 3.8). The best static policy, the multi-threshold, keeps 18.1 only because it already loses 21\% of humans without drift, and it still lets 61\% of bots through; even online training with all labels reaches only 22 DI for DQN, at the cost of 45\% of humans.
 This is a limit of the information available, not of the learner: when the attacker reproduces the very features the detector uses, no decision rule built on them can separate the classes, and defending against replay requires signals the attacker has not copied, such as challenge-response behaviour or device and network features.
 
 \vspace{-15pt}

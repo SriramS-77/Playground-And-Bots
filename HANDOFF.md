@@ -8,6 +8,10 @@ This file is the starting point for whoever continues this project on another ac
   - `latex_project/main.tex` and `main.pdf` (12 pages), plus `latex_project/response_to_reviewers.md`.
   - Commits `84e6751` and `51ea39a`.
   - **No further paper changes** unless the author asks.
+  - **Value corrections (2026-10-19, after the final check against the CSVs).** Applied to `main.tex` and `response_to_reviewers.md`; the author mirrors them in Overleaf by hand.
+    - §IV-C, frozen population input: unfrozen DQN is **97.0**, not 96.6 (`drift/extras_freeze.csv`, DQN unfrozen 96.95).
+    - Fig. 5 text: the best static threshold that stops every bot without drift loses **4.3%** of humans, not 4.4% (`drift/pareto_points.csv`, raw threshold 0.7, human survival 0.9574).
+    - §IV-D, ranking-destroying bots: "best static 3.8" was the *single* threshold. The best static policy is the multi-threshold at **18.1** (`drift/auc_drift/statics.csv`). It keeps that by losing 21% of humans and letting 61% of bots through. The sentence is reworded. "By challenging every user" for oracle DQN is replaced with "at the cost of 45% of humans" (human survival 0.551, challenge share 0.34).
 - **Code:** every script behind the paper's numbers, plus the round-6 exploratory scripts, is committed under `training/experiments/` (this commit).
 - **Paused experiment:** the no-abandonment rerun (§4). It is waiting for the author's go-ahead.
 

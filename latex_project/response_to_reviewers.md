@@ -23,9 +23,9 @@ We thank the editors and reviewers. Every number below appears in the revised ma
   - Recalibrating the reward from a random 2% audit sample matches score-only under covert bots and, unlike it, holds up when bot-like humans shift the score (58.1 against 17.5 at ρ = 1; Table 5).
 - **Gated online training.** Always-online training costs performance when nothing has changed (92.4 against 99.8 frozen). We therefore keep the policy frozen until an unsupervised CUSUM detector on the incoming scores raises an alarm. The detector needs no labels. It never fired in any no-drift run, and it detected covert bots within 1–5 episodes. The gated policy keeps the frozen policy’s 99.8 without drift and reaches 85.1 and 82.0 under covert bots, at least as good as always-online training (Table 6).
 - **Trade-off between humans lost and bots stopped** (Fig. 5).
-  - Without drift, PPO stops every bot while losing under 1% of humans; the best static threshold loses 4.4%.
+  - Without drift, PPO stops every bot while losing under 1% of humans; the best static threshold loses 4.3%.
   - Under covert bots, static thresholds stop all bots only at 27% of humans lost.
-- **Stated limit.** Bots that replay human trajectories destroy the score's ranking, and then every policy falls to DI ≈ 0 (at most 22 even with full labels).
+- **Stated limit.** Bots that replay human trajectories destroy the score's ranking. At ρ = 1 the frozen RL policies and the single static threshold fall to DI ≈ 0; the best static policy keeps 18.1 only by losing 21% of humans, and online DQN with full labels reaches 22 at the cost of 45% of humans.
 
 **2. Train/evaluation independence.**
 - Recordings are split before windowing into scorer, RL and evaluation blocks, rotated across folds. The fold-2 evaluation block (14 humans, 36 bots) is never used for fitting or model selection.

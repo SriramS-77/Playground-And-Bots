@@ -5,7 +5,7 @@ We thank the editors and reviewers. Every number below appears in the revised ma
 ## Associate Editor
 
 - **Gap between Table 4 and the claims.** The main comparison is rebuilt on held-out recordings in a stochastic, literature-grounded simulator. Intervals are 95% CIs over 5 training seeds, and the zero-bot case is excluded (Table 4).
-- **Claims narrowed.** §I-A states what was evaluated and what is only proposed. Usability is described as *modelled*, and the server-resource DoS claim is removed.
+- **Claims narrowed.** Fig. 1 marks which tiers are implemented and which are simulated, and the Limitations (§V-B) state what was not evaluated. Usability is described as *modelled*, and the server-resource DoS claim is removed.
 - **Clarity.** The methodology is now prose. We added a worked example (§III-D), a configuration table giving the source of every value (Table 2), and a scorer figure (Fig. 2).
 
 ## Reviewer 1
@@ -13,20 +13,19 @@ We thank the editors and reviewers. Every number below appears in the revised ma
 **1. Deterministic simulator; the deployed reward is unknown.**
 - **Bots** now solve challenges with an item-response probability, σ(1.5(B_s + 0.5 − T)). **Human** pass rates and solve times come from Bursztein et al. (2010) and Searles et al. (2023) (§III-F, Table 1).
 - **Results.** In this world PPO and DQN reach DI 99.8 and 97.8, against 95.5 for the best static policy, a Neyman–Pearson threshold (Table 4).
-- **Deployable rewards** (§IV-D):
-  - All 12 rewards computed only from observable outcomes collapse to "never challenge".
-  - Two scorer-based rewards do train working policies.
+- **Deployable rewards** (§III-D, Table 5):
   - The label-based reward needs true labels, and the paper says so.
-- **Online training under drift** (§IV-E):
+  - Two rewards that need no labels, score-only and an EM-based posterior, are defined and tested against it, along with two rewards that recalibrate the score from a 2% audit sample.
+- **Online training under drift** (§IV-D):
   - When covert bots break the scorer's calibration, frozen RL policies degrade faster than static thresholds.
   - Online training with the label-free score-only reward recovers this. PPO keeps DI 82.7 at ρ = 1, against 3.8 frozen and 39.5 for the best static policy (Fig. 4).
   - The EM-based posterior reward fails here, because it inherits the scorer's blind spot.
-  - Recalibrating the reward from a random 2% audit sample works under both covert bots and bot-like humans (Table 5).
+  - Recalibrating the reward from a random 2% audit sample matches score-only under covert bots and, unlike it, holds up when bot-like humans shift the score (58.1 against 17.5 at ρ = 1; Table 5).
 - **Gated online training.** Always-online training costs performance when nothing has changed (92.4 against 99.8 frozen). We therefore keep the policy frozen until an unsupervised CUSUM detector on the incoming scores raises an alarm. The detector needs no labels. It never fired in any no-drift run, and it detected covert bots within 1–5 episodes. The gated policy keeps the frozen policy’s 99.8 without drift and reaches 85.1 and 82.0 under covert bots, at least as good as always-online training (Table 6).
 - **Trade-off between humans lost and bots stopped** (Fig. 5).
   - Without drift, PPO stops every bot while losing under 1% of humans; the best static threshold loses 4.4%.
   - Under covert bots, static thresholds stop all bots only at 27% of humans lost.
-- **Stated limit.** Bots that replay human trajectories destroy the score's ranking, and then every policy reaches DI ≈ 0.
+- **Stated limit.** Bots that replay human trajectories destroy the score's ranking, and then every policy falls to DI ≈ 0 (at most 22 even with full labels).
 
 **2. Train/evaluation independence.**
 - Recordings are split before windowing into scorer, RL and evaluation blocks, rotated across folds. The fold-2 evaluation block (14 humans, 36 bots) is never used for fitting or model selection.
@@ -43,7 +42,7 @@ We thank the editors and reviewers. Every number below appears in the revised ma
 **4. Table 4: zero-bot case, standard deviations, "significantly".**
 - Zero-bot traffic is removed from every metric.
 - ± is a 95% CI over 5 training seeds, and the worst seed is also reported.
-- "Significant" is used only for Welch tests with Holm correction.
+- The word "significant" has been removed; differences are reported with 95% CIs over training seeds.
 
 **5. DoS claim and the population confound.**
 - The server-resource DoS claim is removed.
@@ -61,7 +60,7 @@ We thank the editors and reviewers. Every number below appears in the revised ma
 - **Description.** It now matches the model used: one 32-unit LSTM, a 32-unit ReLU layer and a linear logit (6,081 parameters). Training uses a sigmoid with cross-entropy. At inference the logit is calibrated by temperature scaling, T = 1.14 (§III-C, Fig. 2).
 - **Calibration.** On the evaluation block, the Brier score is 0.032 and ECE is 0.053. We report that temperature scaling does not reduce ECE there (§IV-A).
 
-**8. Scope narrower than the motivation.** §I-A lists what was not evaluated: mobile SDKs, fingerprinting, real CAPTCHA providers, server load, adaptive or VLM-based attackers, and a user study.
+**8. Scope narrower than the motivation.** Fig. 1 marks tiers 1–3 as implemented and tier 4 as simulated. The Limitations (§V-B) list what was not evaluated: real CAPTCHA providers, server load (request rate, CPU, latency), and adaptive or VLM-based attackers; a user study is left to future work (§V-C).
 
 **9. External-dataset protocol.**
 - The original fine-tuning results are withdrawn. Balabit contains only humans, and the web-bot runs split windows at random.
@@ -75,7 +74,7 @@ We thank the editors and reviewers. Every number below appears in the revised ma
 **Minor comments.**
 - **Ethics statement and participant count** added.
 - **References** corrected, and unverifiable or uncited ones removed.
-- **Foundational citations added** for DQN, PPO, LinUCB, Thompson Sampling, LSTM, temperature scaling, CUSUM, dataset shift and CAPTCHA usability.
+- **Foundational citations added** for DQN, PPO, LinUCB, Thompson Sampling, LSTM, temperature scaling, CUSUM and CAPTCHA usability.
 - **Figures.** All figures are referenced in the text.
 
 ## Reviewer 2

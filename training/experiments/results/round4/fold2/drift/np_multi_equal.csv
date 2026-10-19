@@ -1,0 +1,16 @@
+eval_direction,eval_rho,DI,fr,policy
+bots,0.5,54.805,3.0239999999999996,NP threshold
+bots,1.0,13.696,2.97,NP threshold
+humans,0.5,66.1,22.686,NP threshold
+humans,1.0,40.71,39.309,NP threshold
+none,0.0,95.59,2.949,NP threshold
+bots,0.5,51.732,2.3025,NP multi-threshold
+bots,1.0,8.506999999999998,2.31,NP multi-threshold
+humans,0.5,76.791,12.070439999999998,NP multi-threshold
+humans,1.0,59.926,21.093010000000003,NP multi-threshold
+none,0.0,94.335,2.2825,NP multi-threshold
+bots,0.5,53.75899999999999,2.2975,special NP multi-threshold
+bots,1.0,11.498,2.3225,special NP multi-threshold
+humans,0.5,71.431,14.710290000000002,special NP multi-threshold
+humans,1.0,51.835,25.77001000000001,special NP multi-threshold
+none,0.0,95.454,2.3025,special NP multi-threshold

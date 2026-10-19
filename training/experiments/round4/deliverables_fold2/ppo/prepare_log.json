@@ -1,0 +1,122 @@
+{
+  "on_gate_failure": "retry",
+  "max_retries": 2,
+  "scorer_cfg": {
+    "representation": "kinematic",
+    "padding": "mask",
+    "lstm_units": [
+      32
+    ],
+    "dense_units": [
+      32
+    ],
+    "dropout": 0.25,
+    "recurrent_dropout": 0.2,
+    "lr": 0.003,
+    "batch_size": 64,
+    "context": 32,
+    "epochs": 120,
+    "patience": 15,
+    "start_from_epoch": 30,
+    "class_balance": "window",
+    "augmentation": "none",
+    "n_copies": 1,
+    "magnitude": 1,
+    "sigma": 2.0
+  },
+  "attempts": [
+    {
+      "attempt": 0,
+      "seed": 0,
+      "status": "passed",
+      "started": "2026-10-06T07:01:11",
+      "ok": true,
+      "canary_humans_kept": 0.65,
+      "scorers": {
+        "part0": {
+          "epochs_run": 63,
+          "start_from_epoch": 30,
+          "best_epoch": 48,
+          "val_loss_first": 0.6311490535736084,
+          "val_loss_best": 0.18494673073291779,
+          "val_auc": 0.975797007156799,
+          "n_train_windows": 680,
+          "n_val_windows": 251,
+          "heldout_auc": 0.9795118125673954,
+          "heldout_humans_misscored": 0.019801980198019802,
+          "heldout_bots_missed": 0.12871287128712872,
+          "heldout_n_windows": 202
+        },
+        "part1": {
+          "epochs_run": 54,
+          "start_from_epoch": 30,
+          "best_epoch": 39,
+          "val_loss_first": 0.6718307733535767,
+          "val_loss_best": 0.28129297494888306,
+          "val_auc": 0.9575298710516976,
+          "n_train_windows": 650,
+          "n_val_windows": 186,
+          "heldout_auc": 0.9645843580914905,
+          "heldout_humans_misscored": 0.07894736842105263,
+          "heldout_bots_missed": 0.14018691588785046,
+          "heldout_n_windows": 297
+        },
+        "part2": {
+          "epochs_run": 56,
+          "start_from_epoch": 30,
+          "best_epoch": 41,
+          "val_loss_first": 0.6349179744720459,
+          "val_loss_best": 0.21670301258563995,
+          "val_auc": 0.9705426356589147,
+          "n_train_windows": 680,
+          "n_val_windows": 284,
+          "heldout_auc": 0.9196663740122915,
+          "heldout_humans_misscored": 0.14925373134328357,
+          "heldout_bots_missed": 0.18627450980392157,
+          "heldout_n_windows": 169
+        },
+        "part3": {
+          "epochs_run": 68,
+          "start_from_epoch": 30,
+          "best_epoch": 53,
+          "val_loss_first": 0.6602069139480591,
+          "val_loss_best": 0.2714676856994629,
+          "val_auc": 0.9649659269613838,
+          "n_train_windows": 703,
+          "n_val_windows": 215,
+          "heldout_auc": 0.9918552036199095,
+          "heldout_humans_misscored": 0.038461538461538464,
+          "heldout_bots_missed": 0.058823529411764705,
+          "heldout_n_windows": 215
+        },
+        "part4": {
+          "epochs_run": 79,
+          "start_from_epoch": 30,
+          "best_epoch": 64,
+          "val_loss_first": 0.6488602161407471,
+          "val_loss_best": 0.3704764246940613,
+          "val_auc": 0.9504528985507247,
+          "n_train_windows": 671,
+          "n_val_windows": 212,
+          "heldout_auc": 0.9629060157601383,
+          "heldout_humans_misscored": 0.0743801652892562,
+          "heldout_bots_missed": 0.10077519379844961,
+          "heldout_n_windows": 250
+        },
+        "refit": {
+          "epochs_run": 78,
+          "start_from_epoch": 30,
+          "best_epoch": 63,
+          "val_loss_first": 0.6403102278709412,
+          "val_loss_best": 0.15707729756832123,
+          "val_auc": 0.9860576923076924,
+          "n_train_windows": 859,
+          "n_val_windows": 274
+        }
+      },
+      "minutes": 0.7
+    }
+  ],
+  "seed_used": 0,
+  "retries_used": 0
+}

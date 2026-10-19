@@ -61,6 +61,8 @@ class QNet(nn.Module):
         self.n_layers = len(hidden) + 1
 
     def forward(self, x):
+        if (EMB_MODE == "emb" or STATE_MASK) and x.shape[-1] == FULL_DIM:
+            x = x * _Q_MASK.to(x.device)     # masked inputs (embedding-only / RLC_MASK) never reach the net
         for i in range(1, self.n_layers):
             x = F.relu(getattr(self, f"layer{i}")(x))
         return getattr(self, f"layer{self.n_layers}")(x)
@@ -73,6 +75,32 @@ class QNet(nn.Module):
 STATE_V2 = os.environ.get("RLC_STATE", "v1") == "v2"
 FULL_DIM = 7 if STATE_V2 else 5
 ABL_DIM = 5 if STATE_V2 else 3
+
+#: Embedding state (round 6), opt-in through RLC_EMB: "both" appends the scorer's chunk embedding
+#: (PCA, current chunk and session mean) to the state; "emb" does the same but masks q and its
+#: mean at the network input. The STORED state always starts with q, so rewards that read
+#: state[0] are unchanged. Tables come from round4/emb_prepare.py (path in RLC_EMB_DIR).
+EMB_MODE = os.environ.get("RLC_EMB", "")
+if EMB_MODE:
+    from . import emb_state as _emb
+    _emb.install(os.environ["RLC_EMB_DIR"])
+    FULL_DIM += 2 * _emb.K
+    _Q_MASK = torch.ones(FULL_DIM)
+    _Q_MASK[:2] = 0.0
+
+#: State ablation (opt-in through RLC_MASK, comma-separated groups): the listed inputs are zeroed
+#: at the network input, exactly like the embedding-only mask. Stored states are unchanged.
+#: Groups (state v1): q, qmean, solved, threat, active; with RLC_EMB also emb_cur, emb_avg.
+STATE_MASK = [g for g in os.environ.get("RLC_MASK", "").split(",") if g]
+if STATE_MASK:
+    assert not STATE_V2, "RLC_MASK is defined for state v1"
+    _GROUPS = {"q": [0], "qmean": [1], "solved": [2], "threat": [3], "active": [4]}
+    if EMB_MODE:
+        _GROUPS.update(emb_cur=list(range(5, 5 + _emb.K)), emb_avg=list(range(5 + _emb.K, 5 + 2 * _emb.K)))
+    if EMB_MODE != "emb":                # "both" keeps q; start from an all-ones mask
+        _Q_MASK = torch.ones(FULL_DIM)
+    for g in STATE_MASK:
+        _Q_MASK[_GROUPS[g]] = 0.0
 
 
 def _v2_counts(user):
@@ -90,6 +118,8 @@ def full_features(user, n_active) -> np.ndarray:
                   user.last_threat_level, n_active], dtype=np.float32)
     s[2] = np.tanh(s[2] / 5.0)
     s[4] = s[4] / 300.0
+    if EMB_MODE:
+        s = np.concatenate([s, _emb.features(user)])
     return s
 
 

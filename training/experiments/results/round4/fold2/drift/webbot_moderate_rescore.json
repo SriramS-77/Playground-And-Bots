@@ -1,0 +1,25 @@
+{
+  "humans": {
+    "n_sessions": 20,
+    "n_chunks": 150,
+    "chunk_mean": 0.13485243158376156,
+    "session_mean": 0.13613443672991057,
+    "share_classified_bot": 0.0
+  },
+  "moderate": {
+    "n_sessions": 116,
+    "n_chunks": 1148,
+    "chunk_mean": 0.04260330201688025,
+    "session_mean": 0.04270439209603288,
+    "share_classified_bot": 0.0,
+    "session_auc_vs_humans": 0.05129310344827586
+  },
+  "advanced": {
+    "n_sessions": 120,
+    "n_chunks": 1276,
+    "chunk_mean": 0.3883958063949612,
+    "session_mean": 0.38888427108604623,
+    "share_classified_bot": 0.016666666666666666,
+    "session_auc_vs_humans": 1.0
+  }
+}

@@ -45,8 +45,9 @@ from expkit.trainer import train_dqn  # noqa: E402
 
 #: The stochastic "grounded" world of E7 and E8 (nb_06 / nb_07): humans can fail a
 #: challenge (false positives exist), abandonment follows measured solve times.
-GROUNDED_CFG = StochasticRewardConfig(abandonment="empirical", abandonment_tau=45.0,
-                                      false_positive_penalty=-100.0)
+#: RLC_ABANDON=none switches off leave-after-pass (sensitivity world; default unchanged).
+GROUNDED_CFG = StochasticRewardConfig(abandonment=os.environ.get("RLC_ABANDON", "empirical"),
+                                      abandonment_tau=45.0, false_positive_penalty=-100.0)
 
 SEEDS = R.SEEDS                   # 5
 EPISODES = R.EPISODES             # 200

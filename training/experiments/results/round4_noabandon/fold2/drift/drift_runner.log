@@ -1,0 +1,43 @@
+task 31 {'kind': 'control', 'algo': 'dqn', 'arm': 'oracle', 'seed': 4} exit 0
+task 30 {'kind': 'control', 'algo': 'dqn', 'arm': 'oracle', 'seed': 3} exit 0
+task 27 {'kind': 'control', 'algo': 'dqn', 'arm': 'oracle', 'seed': 0} exit 0
+task 28 {'kind': 'control', 'algo': 'dqn', 'arm': 'oracle', 'seed': 1} exit 0
+task 29 {'kind': 'control', 'algo': 'dqn', 'arm': 'oracle', 'seed': 2} exit 0
+task 36 {'kind': 'control', 'algo': 'dqn', 'arm': 'posterior', 'seed': 4} exit 0
+task 35 {'kind': 'control', 'algo': 'dqn', 'arm': 'posterior', 'seed': 3} exit 0
+task 33 {'kind': 'control', 'algo': 'dqn', 'arm': 'posterior', 'seed': 1} exit 0
+task 32 {'kind': 'control', 'algo': 'dqn', 'arm': 'posterior', 'seed': 0} exit 0
+task 34 {'kind': 'control', 'algo': 'dqn', 'arm': 'posterior', 'seed': 2} exit 0
+task 87 {'kind': 'online', 'algo': 'dqn', 'arm': 'oracle', 'direction': 'bots', 'rho': 0.1, 'seed': 0} exit 0
+task 88 {'kind': 'online', 'algo': 'dqn', 'arm': 'oracle', 'direction': 'bots', 'rho': 0.1, 'seed': 1} exit 0
+task 90 {'kind': 'online', 'algo': 'dqn', 'arm': 'oracle', 'direction': 'bots', 'rho': 0.1, 'seed': 3} exit 0
+task 91 {'kind': 'online', 'algo': 'dqn', 'arm': 'oracle', 'direction': 'bots', 'rho': 0.1, 'seed': 4} exit 0
+task 89 {'kind': 'online', 'algo': 'dqn', 'arm': 'oracle', 'direction': 'bots', 'rho': 0.1, 'seed': 2} exit 0
+task 94 {'kind': 'online', 'algo': 'dqn', 'arm': 'posterior', 'direction': 'bots', 'rho': 0.1, 'seed': 2} exit 0
+task 96 {'kind': 'online', 'algo': 'dqn', 'arm': 'posterior', 'direction': 'bots', 'rho': 0.1, 'seed': 4} exit 0
+task 92 {'kind': 'online', 'algo': 'dqn', 'arm': 'posterior', 'direction': 'bots', 'rho': 0.1, 'seed': 0} exit 0
+task 93 {'kind': 'online', 'algo': 'dqn', 'arm': 'posterior', 'direction': 'bots', 'rho': 0.1, 'seed': 1} exit 0
+task 95 {'kind': 'online', 'algo': 'dqn', 'arm': 'posterior', 'direction': 'bots', 'rho': 0.1, 'seed': 3} exit 0
+task 52 {'kind': 'control', 'algo': 'dqn', 'arm': 'score-only', 'seed': 0} exit 0
+task 53 {'kind': 'control', 'algo': 'dqn', 'arm': 'score-only', 'seed': 1} exit 0
+task 56 {'kind': 'control', 'algo': 'dqn', 'arm': 'score-only', 'seed': 4} exit 0
+task 54 {'kind': 'control', 'algo': 'dqn', 'arm': 'score-only', 'seed': 2} exit 0
+task 55 {'kind': 'control', 'algo': 'dqn', 'arm': 'score-only', 'seed': 3} exit 0
+task 112 {'kind': 'online', 'algo': 'dqn', 'arm': 'score-only', 'direction': 'bots', 'rho': 0.1, 'seed': 0} exit 0
+task 115 {'kind': 'online', 'algo': 'dqn', 'arm': 'score-only', 'direction': 'bots', 'rho': 0.1, 'seed': 3} exit 0
+task 113 {'kind': 'online', 'algo': 'dqn', 'arm': 'score-only', 'direction': 'bots', 'rho': 0.1, 'seed': 1} exit 0
+task 117 {'kind': 'online', 'algo': 'dqn', 'arm': 'oracle', 'direction': 'bots', 'rho': 0.2, 'seed': 0} exit 0
+task 118 {'kind': 'online', 'algo': 'dqn', 'arm': 'oracle', 'direction': 'bots', 'rho': 0.2, 'seed': 1} exit 0
+task 116 {'kind': 'online', 'algo': 'dqn', 'arm': 'score-only', 'direction': 'bots', 'rho': 0.1, 'seed': 4} exit 0
+task 114 {'kind': 'online', 'algo': 'dqn', 'arm': 'score-only', 'direction': 'bots', 'rho': 0.1, 'seed': 2} exit 0
+task 120 {'kind': 'online', 'algo': 'dqn', 'arm': 'oracle', 'direction': 'bots', 'rho': 0.2, 'seed': 3} exit 0
+task 119 {'kind': 'online', 'algo': 'dqn', 'arm': 'oracle', 'direction': 'bots', 'rho': 0.2, 'seed': 2} exit 0
+task 121 {'kind': 'online', 'algo': 'dqn', 'arm': 'oracle', 'direction': 'bots', 'rho': 0.2, 'seed': 4} exit 0
+task 122 {'kind': 'online', 'algo': 'dqn', 'arm': 'posterior', 'direction': 'bots', 'rho': 0.2, 'seed': 0} exit 0
+task 123 {'kind': 'online', 'algo': 'dqn', 'arm': 'posterior', 'direction': 'bots', 'rho': 0.2, 'seed': 1} exit 0
+task 125 {'kind': 'online', 'algo': 'dqn', 'arm': 'posterior', 'direction': 'bots', 'rho': 0.2, 'seed': 3} exit 0
+task 142 {'kind': 'online', 'algo': 'dqn', 'arm': 'score-only', 'direction': 'bots', 'rho': 0.2, 'seed': 0} exit 0
+task 124 {'kind': 'online', 'algo': 'dqn', 'arm': 'posterior', 'direction': 'bots', 'rho': 0.2, 'seed': 2} exit 0
+task 143 {'kind': 'online', 'algo': 'dqn', 'arm': 'score-only', 'direction': 'bots', 'rho': 0.2, 'seed': 1} exit 0
+task 126 {'kind': 'online', 'algo': 'dqn', 'arm': 'posterior', 'direction': 'bots', 'rho': 0.2, 'seed': 4} exit 0
+task 146 {'kind': 'online', 'algo': 'dqn', 'arm': 'score-only', 'direction': 'bots', 'rho': 0.2, 'seed': 4} exit 2147942406

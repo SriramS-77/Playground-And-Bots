@@ -1,0 +1,2 @@
+preflight: OK
+[drift] task 155: {'kind': 'online', 'algo': 'dqn', 'arm': 'posterior', 'direction': 'bots', 'rho': 0.3, 'seed': 3}

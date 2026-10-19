@@ -1,0 +1,123 @@
+{
+  "on_gate_failure": "declared",
+  "max_retries": 0,
+  "scorer_cfg": {
+    "representation": "kinematic",
+    "padding": "mask",
+    "lstm_units": [
+      32
+    ],
+    "dense_units": [
+      32
+    ],
+    "dropout": 0.25,
+    "recurrent_dropout": 0.2,
+    "lr": 0.003,
+    "batch_size": 64,
+    "context": 32,
+    "epochs": 120,
+    "patience": 15,
+    "start_from_epoch": 30,
+    "class_balance": "window",
+    "augmentation": "none",
+    "n_copies": 1,
+    "magnitude": 1,
+    "sigma": 2.0
+  },
+  "attempts": [
+    {
+      "attempt": 0,
+      "seed": 1,
+      "status": "passed",
+      "started": "2026-10-01T12:07:01",
+      "ok": true,
+      "canary_humans_kept": 0.7,
+      "scorers": {
+        "part0": {
+          "epochs_run": 86,
+          "start_from_epoch": 30,
+          "best_epoch": 71,
+          "val_loss_first": 0.6116736531257629,
+          "val_loss_best": 0.1360226422548294,
+          "val_auc": 0.9883968742600048,
+          "n_train_windows": 700,
+          "n_val_windows": 226,
+          "heldout_auc": 0.9642990654205608,
+          "heldout_humans_misscored": 0.09,
+          "heldout_bots_missed": 0.09345794392523364,
+          "heldout_n_windows": 207
+        },
+        "part1": {
+          "epochs_run": 80,
+          "start_from_epoch": 30,
+          "best_epoch": 65,
+          "val_loss_first": 0.6508738994598389,
+          "val_loss_best": 0.14693652093410492,
+          "val_auc": 0.9834710743801653,
+          "n_train_windows": 703,
+          "n_val_windows": 214,
+          "heldout_auc": 0.9843629177764412,
+          "heldout_humans_misscored": 0.017699115044247787,
+          "heldout_bots_missed": 0.14563106796116504,
+          "heldout_n_windows": 216
+        },
+        "part2": {
+          "epochs_run": 60,
+          "start_from_epoch": 30,
+          "best_epoch": 45,
+          "val_loss_first": 0.6539003252983093,
+          "val_loss_best": 0.21195967495441437,
+          "val_auc": 0.9755963590709353,
+          "n_train_windows": 589,
+          "n_val_windows": 226,
+          "heldout_auc": 0.9785471881060116,
+          "heldout_humans_misscored": 0.03296703296703297,
+          "heldout_bots_missed": 0.19852941176470587,
+          "heldout_n_windows": 318
+        },
+        "part3": {
+          "epochs_run": 59,
+          "start_from_epoch": 30,
+          "best_epoch": 44,
+          "val_loss_first": 0.6413216590881348,
+          "val_loss_best": 0.16798870265483856,
+          "val_auc": 0.9833749759753988,
+          "n_train_windows": 604,
+          "n_val_windows": 293,
+          "heldout_auc": 0.9747747747747748,
+          "heldout_humans_misscored": 0.08,
+          "heldout_bots_missed": 0.06306306306306306,
+          "heldout_n_windows": 236
+        },
+        "part4": {
+          "epochs_run": 72,
+          "start_from_epoch": 30,
+          "best_epoch": 57,
+          "val_loss_first": 0.6339190602302551,
+          "val_loss_best": 0.18438932299613953,
+          "val_auc": 0.9803190051365234,
+          "n_train_windows": 705,
+          "n_val_windows": 272,
+          "heldout_auc": 0.9622673151098441,
+          "heldout_humans_misscored": 0.07865168539325842,
+          "heldout_bots_missed": 0.08955223880597014,
+          "heldout_n_windows": 156
+        },
+        "refit": {
+          "epochs_run": 65,
+          "start_from_epoch": 30,
+          "best_epoch": 50,
+          "val_loss_first": 0.6487874388694763,
+          "val_loss_best": 0.16989925503730774,
+          "val_auc": 0.9836833785004516,
+          "n_train_windows": 866,
+          "n_val_windows": 267
+        }
+      },
+      "minutes": 2.0
+    }
+  ],
+  "seed_used": 1,
+  "retries_used": 0,
+  "provenance_note": "Round 4 DECLARED choice, not a gate retry: the cross-fit with seed 1, fitted locally on 2026-10-01 (Python 3.12, TF 2.20, Keras 3.12) with the round-3 SCORER_CFG on fold 2's scorer+rl. Chosen by the user after seeing its behaviour on the external (Balabit / web-bot) sessions -- a post-hoc choice that the findings must disclose. Every round-3 gate passes for it (diagnostics below). The local run's other record (a simulated seed-0 gate failure used to test the retry path) is deliberately not carried over."
+}

@@ -1,0 +1,41 @@
+D1 train 70 test 30 test chunks 719
+WARNING:tensorflow:5 out of the last 5 calls to <function TensorFlowTrainer.make_predict_function.<locals>.one_step_on_data_distributed at 0x0000023B91271EE0> triggered tf.function retracing. Tracing is expensive and the excessive number of tracings could be due to (1) creating @tf.function repeatedly in a loop, (2) passing tensors with different shapes, (3) passing Python objects instead of tensors. For (1), please define your @tf.function outside of the loop. For (2), @tf.function has reduce_retracing=True option that can avoid unnecessary retracing. For (3), please refer to https://www.tensorflow.org/guide/function#controlling_retracing and https://www.tensorflow.org/api_docs/python/tf/function for  more details.
+WARNING:tensorflow:6 out of the last 6 calls to <function TensorFlowTrainer.make_predict_function.<locals>.one_step_on_data_distributed at 0x0000023B91271EE0> triggered tf.function retracing. Tracing is expensive and the excessive number of tracings could be due to (1) creating @tf.function repeatedly in a loop, (2) passing tensors with different shapes, (3) passing Python objects instead of tensors. For (1), please define your @tf.function outside of the loop. For (2), @tf.function has reduce_retracing=True option that can avoid unnecessary retracing. For (3), please refer to https://www.tensorflow.org/guide/function#controlling_retracing and https://www.tensorflow.org/api_docs/python/tf/function for  more details.
+D1 0 zero-shot {'accuracy': 0.5, 'auc': 0.551, 'bot_f1': np.float64(0.0)}
+D1 0 fine-tuned {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D1 0 scratch {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D1 1 fine-tuned {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D1 1 scratch {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D1 2 fine-tuned {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D1 2 scratch {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D1 3 fine-tuned {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D1 3 scratch {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D1 4 fine-tuned {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D1 4 scratch {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D2 train 70 test 30 test chunks 942
+D2 0 zero-shot {'accuracy': 0.5, 'auc': 1.0, 'bot_f1': np.float64(0.0)}
+D2 0 fine-tuned {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D2 0 scratch {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D2 1 fine-tuned {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D2 1 scratch {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D2 2 fine-tuned {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D2 2 scratch {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D2 3 fine-tuned {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D2 3 scratch {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D2 4 fine-tuned {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+D2 4 scratch {'accuracy': 1.0, 'auc': 1.0, 'bot_f1': np.float64(1.0)}
+                           accuracy           auc      bot_f1        human_f1       
+                               mean    std   mean  std   mean    std     mean    std
+dataset model      level                                                            
+D1      fine-tuned chunk      0.996  0.000  0.999  0.0  0.994  0.000    0.997  0.000
+                   session    1.000  0.000  1.000  0.0  1.000  0.000    1.000  0.000
+        scratch    chunk      0.998  0.001  1.000  0.0  0.997  0.001    0.998  0.001
+                   session    1.000  0.000  1.000  0.0  1.000  0.000    1.000  0.000
+        zero-shot  chunk      0.656    NaN  0.543  NaN  0.039    NaN    0.791    NaN
+                   session    0.500    NaN  0.551  NaN  0.000    NaN    0.667    NaN
+D2      fine-tuned chunk      0.995  0.000  0.999  0.0  0.995  0.000    0.995  0.000
+                   session    1.000  0.000  1.000  0.0  1.000  0.000    1.000  0.000
+        scratch    chunk      0.996  0.002  1.000  0.0  0.996  0.002    0.996  0.002
+                   session    1.000  0.000  1.000  0.0  1.000  0.000    1.000  0.000
+        zero-shot  chunk      0.585    NaN  0.992  NaN  0.301    NaN    0.705    NaN
+                   session    0.500    NaN  1.000  NaN  0.000    NaN    0.667    NaN

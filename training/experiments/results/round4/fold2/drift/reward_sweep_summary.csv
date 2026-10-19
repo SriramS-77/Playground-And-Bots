@@ -1,0 +1,11 @@
+setting,n,DI,human_survival,bot_survival,friction_s,DI_ci95,DI_seed_min,beats_best_static
+as trained (Table),5,97.704,0.977,0.0,1.3454,1.27,96.86,True
+cheap leak (R_leak -50),5,98.728,0.9873,0.0,0.7777,1.47,97.05,True
+costly leak (R_leak -300),5,98.218,0.9822,0.0,1.0684,1.42,97.02,True
+mild false positive (R_FP -50),5,92.094,0.9209,0.0,4.0089,15.09,70.41,True
+harsh false positive (R_FP -200),5,97.496,0.975,0.0,1.4091,1.14,96.86,True
+gentle friction (c_f 1/s),5,97.584,0.9758,0.0,1.5041,1.68,96.81,True
+harsh friction (c_f 4/s),5,98.2306,0.9823,0.0,0.9687,1.02,97.04,True
+low overkill (c_o 1),5,98.032,0.9803,0.0,1.1924,1.18,97.02,True
+low underestimation (c_u 2.5),5,98.2368,0.9829,0.0005,1.0359,1.56,97.02,True
+high underestimation (c_u 10),5,98.322,0.9832,0.0,0.93,0.88,97.13,True

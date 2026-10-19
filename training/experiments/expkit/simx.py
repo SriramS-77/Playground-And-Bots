@@ -151,6 +151,7 @@ def run_x(
     human_skill_sd: float = 0.0,
     seed_global: bool = True,
     bot_strength_range: tuple[int, int] = (0, 9),
+    audit: dict | None = None,
 ) -> tuple[XSimResult, list[Transition]]:
     """One episode. Returns (result, transitions).
 
@@ -159,8 +160,15 @@ def run_x(
     `bot_strength_range` is the inclusive range B_s is drawn from -- (0, 9) is the
     published draw, and keeps the RNG stream identical to it; anything else is a drift
     experiment (e.g. (5, 9), a solver upgrade).
+
+    `audit` (optional, exploratory): {"eps", "level", "seed", "log"}. Before the policy's first
+    decision on a user, with probability eps the user is shown challenge `level` (an audit
+    challenge: real friction, failures and leaving). The observable result is appended to
+    `audit["log"]` as (first chunk score, failed?) -- never the class. A user stopped by the
+    audit leaves the episode. Uses its own RNG, so None keeps every existing run identical.
     """
     rng = random.Random(seed)
+    arng = random.Random((seed or 0) + 7_777) if audit else None
     if seed_global and seed is not None:
         # Two policies in the published code draw from GLOBAL generators that the `seed`
         # argument never reached: ThompsonPolicy via `torch.randn_like`, and DQNPolicy's
@@ -214,6 +222,20 @@ def run_x(
 
             if user.exhausted and not policy.acts_when_exhausted:
                 continue
+
+            if audit and t == 1 and arng.random() < audit["eps"]:
+                ar, aterm, ainfo = stochastic_reward(user, audit["level"], solve, cfg, arng)
+                result.outcomes[ainfo["outcome"]] += 1
+                result.challenges_issued += 1
+                if not user.is_bot:
+                    result.human_seconds += ainfo["seconds"]
+                failed = ainfo["outcome"] in ("bot_blocked", "human_false_positive")
+                if "feat" in audit:               # optional: the user's features at the audit
+                    audit["log"].append((user.bot_score, failed, audit["feat"](user)))
+                else:
+                    audit["log"].append((user.bot_score, failed))
+                if aterm or user.exhausted:
+                    continue                      # stopped (or left) at the audit
 
             state = policy.features(user, n_active).tolist() if collect else None
             if collect and user.uid in pending:
